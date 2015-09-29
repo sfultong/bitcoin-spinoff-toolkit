@@ -1,5 +1,6 @@
 #include <iostream>
 #include <bitcoin/bitcoin.hpp>
+#include <stdint-gcc.h>
 
 using namespace std;
 
@@ -17,15 +18,28 @@ int new_keypair()
 }
 
 int main() {
-    string testEncodedAddress = "1KvYT82JhJLhZTnVsp3MwPnFJLkc73Tn27";
+    string testEncodedAddress = "15BWWGJRtB8Z9NXmMAp94whujUK6SrmRwT";
+    string messageToSign = "hey there";
+    string signatureString = "HxXI251uSorWtrqkZejCljYlU+6s861evqN6u3IyYJVSaqYooYzvuSCf6TA0B+wJDOkqljz0fQgkvKjJHiBJgRg=";
     bc::payment_address address;
     if (address.set_encoded(testEncodedAddress)) {
-        cout << "Nice, it worked" << endl;
-        cout << address.encoded() << endl;
+        bc::message_signature decodedSignature;
+        bc::data_chunk chunk;
+        if (bc::decode_base64(chunk, signatureString)) {
+            copy(chunk.begin(), chunk.end(), decodedSignature.begin());
+            vector<uint8_t> messageBytes(messageToSign.begin(),messageToSign.end());
+            bc::array_slice<uint8_t> slice(messageBytes);
+            if (bc::verify_message(slice, address, decodedSignature)) {
+                cout << "wow, we verified this" << endl;
+            } else {
+                cout << "signature doesn't match" << endl;
+            }
+        } else {
+            cout << "signature invalid encoding" << endl;
+        }
     } else {
-        cout << "Failure!" << endl;
+        cout << "Invalid Address" << endl;
     }
-
 
     return 0;
 }

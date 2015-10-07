@@ -19,11 +19,11 @@ set(SOURCE_FILES
         ${HEADER_FILES}
         src/generate.cpp
 )
-add_library(spinoff_toolkit ${SOURCE_FILES})
+add_library(spinoff_toolkit SHARED ${SOURCE_FILES})
 
 # test program
 set(TEST_SOURCE_FILES
-        ${SOURCE_FILES}
+        ${HEADER_FILES}
         src/util/main.cpp
 )
 add_executable(spinoff_test ${TEST_SOURCE_FILES})

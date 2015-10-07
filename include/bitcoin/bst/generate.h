@@ -21,6 +21,7 @@ using namespace std;
 namespace bst {
 
     string getVerificationMessage(string address, string message, string signature);
+    string getTest();
 
 }
 

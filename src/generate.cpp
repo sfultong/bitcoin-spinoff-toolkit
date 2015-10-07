@@ -24,6 +24,7 @@ namespace bst {
     static const string UNMATCHED = "signature doesn't match";
     static const string INVALID_SIGNATURE = "signature invalid encoding";
     static const string INVALID_ADDRESS = "Invalid Address";
+    static const string TEST_STRING = "Things are successful";
 
     string getVerificationMessage(string address, string message, string signature)
     {
@@ -47,6 +48,11 @@ namespace bst {
         } else {
             return INVALID_ADDRESS;
         }
+    }
+
+    string getTest()
+    {
+        return TEST_STRING;
     }
 }
 

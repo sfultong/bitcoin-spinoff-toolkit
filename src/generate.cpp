@@ -16,6 +16,7 @@
 
 #include <bitcoin/bitcoin.hpp>
 #include "bitcoin/bst/generate.h"
+#include "sqlite3.h"
 
 using namespace std;
 
@@ -53,6 +54,71 @@ namespace bst {
     string getTest()
     {
         return TEST_STRING;
+    }
+
+    static int callback(void *NotUsed, int argc, char **argv, char **azColName){
+        int i;
+        const char **safeArgv = const_cast<const char**>(argv);
+        for(i=0; i<argc; i++){
+            printf("%s = %s\n", azColName[i], argv[i] ? safeArgv[i] : "NULL");
+        }
+        printf("\n");
+        return 0;
+    }
+
+    void testSqlite(ostream& stream)
+    {
+        sqlite3 *db;
+        char *zErrMsg = 0;
+        int rc;
+
+        rc = sqlite3_open("test.sqlite", &db);
+        if( rc ){
+          fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+          sqlite3_close(db);
+          return;
+        }
+
+        char *createTable = "create table p2pkh ("
+                "pkh char(20) primary key,"
+                "amount integer"
+                ");";
+        rc = sqlite3_exec(db, createTable, callback, 0, &zErrMsg);
+        if( rc!=SQLITE_OK ){
+          fprintf(stderr, "SQL error: %s\n", zErrMsg);
+          sqlite3_free(zErrMsg);
+        }
+
+        char *insertData = "insert into p2pkh values ("
+                "'a8ab62c82a3500bee23fa30b26c1c9165dbb423d',"
+                "5"
+                ");";
+        rc = sqlite3_exec(db, insertData, callback, 0, &zErrMsg);
+        if( rc!=SQLITE_OK ){
+            fprintf(stderr, "SQL error: %s\n", zErrMsg);
+            sqlite3_free(zErrMsg);
+        }
+
+        char *selectData = "select * from p2pkh;";
+        rc = sqlite3_exec(db, selectData, callback, 0, &zErrMsg);
+        if( rc!=SQLITE_OK ){
+            fprintf(stderr, "SQL error: %s\n", zErrMsg);
+            sqlite3_free(zErrMsg);
+        }
+
+
+
+        //rc = sqlite3_prepare_v2(db, )
+        /*
+        if( rc!=SQLITE_OK ){
+            fprintf(stderr, "SQL error: %s\n", zErrMsg);
+            sqlite3_free(zErrMsg);
+        }
+         */
+
+
+
+        sqlite3_close(db);
     }
 }
 

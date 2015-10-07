@@ -22,6 +22,7 @@ namespace bst {
 
     string getVerificationMessage(string address, string message, string signature);
     string getTest();
+    void testSqlite(ostream& stream);
 
 }
 

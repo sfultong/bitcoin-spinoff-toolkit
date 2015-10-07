@@ -18,6 +18,7 @@ set(HEADER_FILES
 set(SOURCE_FILES
         ${HEADER_FILES}
         src/generate.cpp
+        src/sqlite3.c
 )
 add_library(spinoff_toolkit SHARED ${SOURCE_FILES})
 

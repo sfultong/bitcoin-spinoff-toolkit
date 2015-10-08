@@ -40,7 +40,6 @@ int main() {
     string result = bst::getVerificationMessage(testEncodedAddress, messageToSign, signatureString);
     cout << result << endl;
 
-    bst::testSqlite(cout);
 
     return 0;
 }

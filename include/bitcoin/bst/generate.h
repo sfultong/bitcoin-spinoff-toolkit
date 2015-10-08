@@ -16,13 +16,25 @@
 #ifndef SPINOFF_TOOLKIT_GENERATE_H
 #define SPINOFF_TOOLKIT_GENERATE_H
 
+#include <sqlite3.h>
+
 using namespace std;
 
 namespace bst {
 
+    struct snapshot_preparer
+    {
+        sqlite3 *db;
+        sqlite3_stmt *insert_p2pkh;
+        sqlite3_stmt *get_all_p2pkh;
+    };
+
     string getVerificationMessage(string address, string message, string signature);
-    string getTest();
-    void testSqlite(ostream& stream);
+    bool prepareForUTXOs(snapshot_preparer& preparer);
+    bool writeUTXO(const snapshot_preparer& preparer, const vector<uint8_t>& pubkeyscript, const uint64_t amount);
+    // also cleans up
+    bool writeSnapshot(const snapshot_preparer& preparer);
+    void prettyPrintVector(const vector<uint8_t>& vector);
 
 }
 

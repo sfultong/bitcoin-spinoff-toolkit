@@ -18,10 +18,6 @@
 #include "bitcoin/bst/generate.h"
 #include "sqlite3.h"
 
-/*
-  a8ab62c82a3500bee23fa30b26c1c9165dbb423d
- "                                        ";
- */
 using namespace std;
 
 namespace bst {
@@ -65,6 +61,22 @@ namespace bst {
         return 0;
     }
 
+    static int printp2pkh(void *NotUsed, int argc, char **argv, char **azColName){
+        vector<uint8_t> hashVec;
+        if ( ! decodeVector(argv[0], hashVec))
+        {
+            cout << "error decoding " << argv[0] << endl;
+            return 0;
+        }
+
+        bc::short_hash sh;
+        copy(hashVec.begin(), hashVec.end(), sh.begin());
+        bc::payment_address address(111, sh);
+
+        cout << address.encoded() << " " << argv[1] << endl;
+        return 0;
+    }
+
     static const string CREATE_TABLE = "create table p2pkh ("
                 "pkh char(20) primary key,"
                 "amount integer"
@@ -95,38 +107,47 @@ namespace bst {
         return true;
     }
 
-    void prettyKey(string& s, const vector<uint8_t>& key)
-    {
-        for (int i = 0; i < 20; i++)
-        {
-            uint8_t b = key[i];
-            int first = (b & 0xF0) >> 4;
-            first = first < 10 ? first + '0' : first + 'A';
-            int second = b & 0x0F;
-            second = second < 10 ? second + '0' : second + 'A';
-            /*
-            s[2 * i] = first;
-            s[2 * i + 1] = second;
-             */
-            s.replace(2 * i, 1, 1, (char) first);
-            s.replace(2 * i + 1, 1, 1, (char) second);
-        }
-    }
-
-    void prettyPrintVector(const vector<uint8_t>& vector)
+    void prettyPrintVector(const vector<uint8_t>& vector, stringstream& stream)
     {
         for (auto &b : vector)
         {
             int first = (b & 0xF0) >> 4;
-            first = first < 10 ? first + '0' : first + 'A';
+            first = first < 10 ? first + '0' : first - 10 + 'A';
             int second = b & 0x0F;
-            second = second < 10 ? second + '0' : second + 'A';
-            cout << (char) first << (char) second;
+            second = second < 10 ? second + '0' : second - 10 + 'A';
+            stream << (char) first << (char) second;
         }
+    }
+
+    bool decodeVector(const string& vectorString, vector<uint8_t>& vector)
+    {
+        if (vectorString.length() % 2)
+        {
+            return false;
+        }
+        for (int i = 0; i < vectorString.length(); i+=2)
+        {
+            int first = vectorString[i];
+            if (first >= 'a' && first <= 'f') first += 'A' - 'a';
+            if (! ((first >= '0' && first <= '9')
+                || (first >= 'A' && first <= 'F'))) return false;
+            int value = first >= 'A' ? first - 'A' + 10 : first - '0';
+            value <<= 4;
+
+            int second = vectorString[i + 1];
+            if (second >= 'a' && second <= 'f') second += 'A' - 'a';
+            if (! ((second >= '0' && second <= '9')
+                || (second >= 'A' && second <= 'F'))) return false;
+            value += second >= 'A' ? second - 'A' + 10 : second - '0';
+
+            vector.push_back((uint8_t) value);
+        }
+        return true;
     }
 
     bool writeUTXO(const snapshot_preparer& preparer, const vector<uint8_t>& pubkeyscript, const uint64_t amount)
     {
+
         int rc;
         bc::array_slice<uint8_t> slice(pubkeyscript);
         bc::script_type script = bc::parse_script(slice);
@@ -136,16 +157,40 @@ namespace bst {
                 break;
             case bc::payment_type::pubkey_hash:
             {
+                /*
+                stringstream ss;
+                prettyPrintVector(pubkeyscript, ss);
+                cout << ss.str() << " " << amount << endl;
+                 */
+
                 vector<uint8_t>::const_iterator keystart = pubkeyscript.begin() + 3;
-                vector<uint8_t>::const_iterator keyend = pubkeyscript.begin() + 22;
+                vector<uint8_t>::const_iterator keyend = pubkeyscript.begin() + 23;
                 vector<uint8_t> key(keystart, keyend);
-                string keyString = "                                        ";
-                prettyKey(keyString, key);
-                sqlite3_bind_text(preparer.insert_p2pkh, 1, keyString.c_str(), -1, NULL);
-                sqlite3_bind_int64(preparer.insert_p2pkh, 2, amount);
-                rc = sqlite3_step(preparer.insert_p2pkh);
+                stringstream ss;
+                prettyPrintVector(key, ss);
+                string keyString = ss.str();
+                rc = sqlite3_bind_text(preparer.insert_p2pkh, 1, keyString.c_str(), -1, NULL);
                 if (rc != SQLITE_OK)
                 {
+                    cout << "error binding address hash " << rc << endl;
+                    return false;
+                }
+                rc = sqlite3_bind_int64(preparer.insert_p2pkh, 2, amount);
+                if (rc != SQLITE_OK)
+                {
+                    cout << "error binding amount" << rc << endl;
+                    return false;
+                }
+                rc = sqlite3_step(preparer.insert_p2pkh);
+                if (rc != SQLITE_DONE)
+                {
+                    cout << "error writing row " << rc << endl;
+                    return false;
+                }
+                rc = sqlite3_reset(preparer.insert_p2pkh);
+                if (rc != SQLITE_OK)
+                {
+                    cout << "error resetting prepared statement" << rc << endl;
                     return false;
                 }
             }
@@ -164,7 +209,7 @@ namespace bst {
     {
         char *zErrMsg = 0;
         int rc;
-        rc = sqlite3_exec(preparer.db, GET_ALL_P2PKH.c_str(), callback, 0, &zErrMsg);
+        rc = sqlite3_exec(preparer.db, GET_ALL_P2PKH.c_str(), printp2pkh, 0, &zErrMsg);
         if( rc!=SQLITE_OK ){
             fprintf(stderr, "SQL error: %s\n", zErrMsg);
             sqlite3_free(zErrMsg);

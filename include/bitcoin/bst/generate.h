@@ -27,6 +27,7 @@ namespace bst {
         sqlite3 *db;
         sqlite3_stmt *insert_p2pkh;
         sqlite3_stmt *get_all_p2pkh;
+        uint8_t address_prefix;
     };
 
     string getVerificationMessage(string address, string message, string signature);
@@ -34,7 +35,8 @@ namespace bst {
     bool writeUTXO(const snapshot_preparer& preparer, const vector<uint8_t>& pubkeyscript, const uint64_t amount);
     // also cleans up
     bool writeSnapshot(const snapshot_preparer& preparer);
-    void prettyPrintVector(const vector<uint8_t>& vector);
+    void prettyPrintVector(const vector<uint8_t>& vector, stringstream& ss);
+    bool decodeVector(const string& vectorString, vector<uint8_t>& vector);
 
 }
 

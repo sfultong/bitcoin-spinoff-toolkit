@@ -26,6 +26,7 @@ namespace bst {
     static const string INVALID_SIGNATURE = "signature invalid encoding";
     static const string INVALID_ADDRESS = "Invalid Address";
     static const string DB_NAME = "test.sqlite";
+    static const int TRANSACTION_SIZE = 1000;
 
     string getVerificationMessage(string address, string message, string signature)
     {
@@ -85,6 +86,7 @@ namespace bst {
     static const string GET_ALL_P2PKH = "select * from p2pkh order by pkh";
     bool prepareForUTXOs(snapshot_preparer& preparer)
     {
+        preparer.transaction_count = 0;
         char *zErrMsg = 0;
         int rc;
 
@@ -145,10 +147,21 @@ namespace bst {
         return true;
     }
 
-    bool writeUTXO(const snapshot_preparer& preparer, const vector<uint8_t>& pubkeyscript, const uint64_t amount)
+    bool writeUTXO(snapshot_preparer& preparer, const vector<uint8_t>& pubkeyscript, const uint64_t amount)
     {
-
         int rc;
+        char *zErrMsg = 0;
+
+        // start transaction if we haven't already
+        if (preparer.transaction_count == 0) {
+            string begin = "BEGIN;";
+            rc = sqlite3_exec(preparer.db, begin.c_str(), callback, 0, &zErrMsg);
+            if( rc!=SQLITE_OK ){
+                fprintf(stderr, "SQL error: %s\n", zErrMsg);
+                sqlite3_free(zErrMsg);
+            }
+        }
+
         bc::array_slice<uint8_t> slice(pubkeyscript);
         bc::script_type script = bc::parse_script(slice);
         switch (script.type())
@@ -202,13 +215,40 @@ namespace bst {
             default:
                 break;
         }
+
+        // finish a transaction if we've reached the statement limit
+        preparer.transaction_count++;
+        if (preparer.transaction_count == TRANSACTION_SIZE)
+        {
+            string commit = "COMMIT;";
+            rc = sqlite3_exec(preparer.db, commit.c_str(), callback, 0, &zErrMsg);
+            if( rc!=SQLITE_OK ){
+                fprintf(stderr, "SQL error: %s\n", zErrMsg);
+                sqlite3_free(zErrMsg);
+            }
+            preparer.transaction_count = 0;
+        }
+
         return true;
     }
 
-    bool writeSnapshot(const snapshot_preparer& preparer)
+    bool writeSnapshot(snapshot_preparer& preparer)
     {
         char *zErrMsg = 0;
         int rc;
+
+        // commit the last transaction, if there is one
+        if (preparer.transaction_count != 0)
+        {
+            string commit = "COMMIT;";
+            rc = sqlite3_exec(preparer.db, commit.c_str(), callback, 0, &zErrMsg);
+            if( rc!=SQLITE_OK ){
+                fprintf(stderr, "SQL error: %s\n", zErrMsg);
+                sqlite3_free(zErrMsg);
+            }
+            preparer.transaction_count = 0;
+        }
+
         rc = sqlite3_exec(preparer.db, GET_ALL_P2PKH.c_str(), printp2pkh, 0, &zErrMsg);
         if( rc!=SQLITE_OK ){
             fprintf(stderr, "SQL error: %s\n", zErrMsg);

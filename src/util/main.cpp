@@ -76,6 +76,7 @@ void test_store_p2pkhs()
     bst::writeUTXO(preparer, vector1, 24900000000);
     bst::writeUTXO(preparer, vector2, 99998237);
     bst::writeSnapshot(preparer);
+    bst::printSnapshot();
 }
 
 int main() {

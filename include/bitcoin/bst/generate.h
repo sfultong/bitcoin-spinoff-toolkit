@@ -22,6 +22,21 @@ using namespace std;
 
 namespace bst {
 
+    typedef std::vector<uint8_t> short_hash;
+    typedef std::vector<uint8_t> sha_hash;
+
+    /*
+    Version            01 00 00 00                                                 4 bytes (uint32)
+    Blockhash          hash of Bitcoin block that snapshot was taken from          32 bytes
+    nP2PKH             the number of P2PKH to be claimed                           8 bytes (uint64)
+     */
+    struct snapshot_header {
+        uint32_t            version;
+        sha_hash            block_hash;
+        uint64_t            nP2PKH;
+        snapshot_header() : version(0), block_hash(20), nP2PKH(0) {}
+    };
+
     struct snapshot_preparer
     {
         sqlite3 *db;
@@ -38,6 +53,7 @@ namespace bst {
     bool writeSnapshot(snapshot_preparer& preparer);
     void prettyPrintVector(const vector<uint8_t>& vector, stringstream& ss);
     bool decodeVector(const string& vectorString, vector<uint8_t>& vector);
+    void printSnapshot();
 
 }
 

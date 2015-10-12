@@ -25,7 +25,8 @@ namespace bst {
     static const string UNMATCHED = "signature doesn't match";
     static const string INVALID_SIGNATURE = "signature invalid encoding";
     static const string INVALID_ADDRESS = "Invalid Address";
-    static const string DB_NAME = "test.sqlite";
+    static const string DB_NAME = "temp.sqlite";
+    static const string SNAPSHOT_NAME = "snapshot";
     static const int TRANSACTION_SIZE = 1000;
 
     string getVerificationMessage(string address, string message, string signature)
@@ -59,22 +60,6 @@ namespace bst {
             printf("%s = %s\n", azColName[i], argv[i] ? safeArgv[i] : "NULL");
         }
         printf("\n");
-        return 0;
-    }
-
-    static int printp2pkh(void *NotUsed, int argc, char **argv, char **azColName){
-        vector<uint8_t> hashVec;
-        if ( ! decodeVector(argv[0], hashVec))
-        {
-            cout << "error decoding " << argv[0] << endl;
-            return 0;
-        }
-
-        bc::short_hash sh;
-        copy(hashVec.begin(), hashVec.end(), sh.begin());
-        bc::payment_address address(111, sh);
-
-        cout << address.encoded() << " " << argv[1] << endl;
         return 0;
     }
 
@@ -119,6 +104,13 @@ namespace bst {
             second = second < 10 ? second + '0' : second - 10 + 'A';
             stream << (char) first << (char) second;
         }
+    }
+
+    void printVector(const vector<uint8_t>& vector)
+    {
+        stringstream ss;
+        prettyPrintVector(vector, ss);
+        cout << ss.str() << endl;
     }
 
     bool decodeVector(const string& vectorString, vector<uint8_t>& vector)
@@ -249,17 +241,83 @@ namespace bst {
             preparer.transaction_count = 0;
         }
 
-        rc = sqlite3_exec(preparer.db, GET_ALL_P2PKH.c_str(), printp2pkh, 0, &zErrMsg);
+        // get total number of p2pkh transactions
+        snapshot_header header = snapshot_header();
+        sqlite3_stmt* stmt;
+        string get_total_p2pkh = "select count(*) from p2pkh;";
+        rc = sqlite3_prepare_v2(preparer.db, get_total_p2pkh.c_str(), -1, &stmt, NULL);
+        rc = sqlite3_step(stmt);
+        header.nP2PKH = sqlite3_column_int64(stmt, 0);
+        rc = sqlite3_finalize(stmt);
+
+        // write snapshot header
+        ofstream snapshot;
+        snapshot.open(SNAPSHOT_NAME, ios::binary);
+        snapshot.write(reinterpret_cast<const char*>(&header.version), sizeof(header.version));
+        copy(header.block_hash.begin(), header.block_hash.end(), ostream_iterator<uint8_t>(snapshot));
+        snapshot.write(reinterpret_cast<const char*>(&header.nP2PKH), sizeof(header.nP2PKH));
+
+        // write all p2pkh to snapshot
+        rc = sqlite3_prepare_v2(preparer.db, GET_ALL_P2PKH.c_str(), -1, &stmt, NULL);
         if( rc!=SQLITE_OK ){
-            fprintf(stderr, "SQL error: %s\n", zErrMsg);
-            sqlite3_free(zErrMsg);
+            cout << "Could not prepare statement for getting all p2pkh" << endl;
+        }
+
+        while (SQLITE_ROW == (rc = sqlite3_step(stmt))) {
+
+            const unsigned char* keyCString = sqlite3_column_text(stmt, 0);
+            stringstream ss;
+            ss << keyCString;
+            vector<uint8_t> hashVec;
+            if ( ! decodeVector(ss.str(), hashVec))
+            {
+                cout << "error decoding " << ss.str() << endl;
+                return 0;
+            }
+            copy(hashVec.begin(), hashVec.end(), ostream_iterator<uint8_t>(snapshot));
+
+            uint64_t amount = sqlite3_column_int64(stmt, 1);
+            snapshot.write(reinterpret_cast<const char*>(&amount), sizeof(amount));
+        }
+
+        if (SQLITE_DONE != rc)
+        {
+            cout << "could not get all rows: " << rc << endl;
         }
 
         sqlite3_close(preparer.db);
 
         remove(DB_NAME.c_str());
 
+        snapshot.flush();
+        snapshot.close();
+
         return true;
+    }
+
+    void printSnapshot()
+    {
+        snapshot_header header;
+        ifstream snapshot;
+        snapshot.open(SNAPSHOT_NAME, ios::binary);
+        snapshot.read(reinterpret_cast<char*>(&header.version), sizeof(header.version));
+        snapshot.read(reinterpret_cast<char*>(&header.block_hash[0]), 20);
+        snapshot.read(reinterpret_cast<char*>(&header.nP2PKH), sizeof(header.nP2PKH));
+
+        for (int i = 0; i < header.nP2PKH; i++) {
+            vector<uint8_t> hashVec(20);
+            snapshot.read(reinterpret_cast<char*>(&hashVec[0]), 20);
+            bc::short_hash sh;
+            copy(hashVec.begin(), hashVec.end(), sh.begin());
+            bc::payment_address address(111, sh);
+
+            uint64_t amount;
+            snapshot.read(reinterpret_cast<char*>(&amount), sizeof(amount));
+            cout << address.encoded() << " " << amount << endl;
+        }
+
+        snapshot.close();
+        remove(SNAPSHOT_NAME.c_str());
     }
 }
 

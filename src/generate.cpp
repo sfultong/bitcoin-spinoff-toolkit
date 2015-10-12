@@ -64,11 +64,13 @@ namespace bst {
     }
 
     static const string CREATE_TABLE = "create table p2pkh ("
-                "pkh char(20) primary key,"
+                "id integer primary key,"
+                "pkh char(20),"
                 "amount integer"
                 ");";
-    static const string INSERT_P2PKH = "insert into p2pkh values (?, ?)";
-    static const string GET_ALL_P2PKH = "select * from p2pkh order by pkh";
+    static const string CREATE_INDEX = "create index p2pkh_pkh on p2pkh (pkh);";
+    static const string INSERT_P2PKH = "insert into p2pkh (pkh, amount) values (?, ?)";
+    static const string GET_ALL_P2PKH = "select pkh, sum(amount) from p2pkh group by pkh order by pkh";
     bool prepareForUTXOs(snapshot_preparer& preparer)
     {
         preparer.transaction_count = 0;
@@ -83,6 +85,13 @@ namespace bst {
         }
 
         rc = sqlite3_exec(preparer.db, CREATE_TABLE.c_str(), callback, 0, &zErrMsg);
+        if( rc!=SQLITE_OK ){
+            fprintf(stderr, "SQL error: %s\n", zErrMsg);
+            sqlite3_free(zErrMsg);
+            return false;
+        }
+
+        rc = sqlite3_exec(preparer.db, CREATE_INDEX.c_str(), callback, 0, &zErrMsg);
         if( rc!=SQLITE_OK ){
             fprintf(stderr, "SQL error: %s\n", zErrMsg);
             sqlite3_free(zErrMsg);
@@ -162,16 +171,16 @@ namespace bst {
                 break;
             case bc::payment_type::pubkey_hash:
             {
-                /*
                 stringstream ss;
+                /*
                 prettyPrintVector(pubkeyscript, ss);
                 cout << ss.str() << " " << amount << endl;
+                ss.clear();
                  */
 
                 vector<uint8_t>::const_iterator keystart = pubkeyscript.begin() + 3;
                 vector<uint8_t>::const_iterator keyend = pubkeyscript.begin() + 23;
                 vector<uint8_t> key(keystart, keyend);
-                stringstream ss;
                 prettyPrintVector(key, ss);
                 string keyString = ss.str();
                 rc = sqlite3_bind_text(preparer.insert_p2pkh, 1, keyString.c_str(), -1, NULL);
@@ -244,7 +253,7 @@ namespace bst {
         // get total number of p2pkh transactions
         snapshot_header header = snapshot_header();
         sqlite3_stmt* stmt;
-        string get_total_p2pkh = "select count(*) from p2pkh;";
+        string get_total_p2pkh = "select count(distinct pkh) from p2pkh;";
         rc = sqlite3_prepare_v2(preparer.db, get_total_p2pkh.c_str(), -1, &stmt, NULL);
         rc = sqlite3_step(stmt);
         header.nP2PKH = sqlite3_column_int64(stmt, 0);

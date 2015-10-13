@@ -16,6 +16,7 @@
 #ifndef SPINOFF_TOOLKIT_GENERATE_H
 #define SPINOFF_TOOLKIT_GENERATE_H
 
+#include <fstream>
 #include <sqlite3.h>
 
 using namespace std;
@@ -31,19 +32,25 @@ namespace bst {
     nP2PKH             the number of P2PKH to be claimed                           8 bytes (uint64)
      */
     struct snapshot_header {
-        uint32_t            version;
-        sha_hash            block_hash;
-        uint64_t            nP2PKH;
-        snapshot_header() : version(0), block_hash(20), nP2PKH(0) {}
+        uint32_t version;
+        sha_hash block_hash;
+        uint64_t nP2PKH;
+
+        snapshot_header() : version(0), block_hash(20), nP2PKH(0) { }
     };
 
-    struct snapshot_preparer
-    {
+    struct snapshot_preparer {
         sqlite3 *db;
         sqlite3_stmt *insert_p2pkh;
         sqlite3_stmt *get_all_p2pkh;
         uint8_t address_prefix;
         int transaction_count;
+    };
+
+    struct snapshot_reader
+    {
+        ifstream snapshot;
+        snapshot_header header;
     };
 
     string getVerificationMessage(string address, string message, string signature);
@@ -54,8 +61,10 @@ namespace bst {
     void prettyPrintVector(const vector<uint8_t>& vector, stringstream& ss);
     bool decodeVector(const string& vectorString, vector<uint8_t>& vector);
     void printSnapshot();
+    bool openSnapshot(snapshot_reader& reader);
 
-    bool recover_address(string& message, string& signature, vector<uint8_t>& paymentVector);
+    bool recover_address(const string& message, const string& signature, vector<uint8_t>& paymentVector);
+    uint64_t getP2PKHAmount(snapshot_reader& reader, const string& claim, const string& signature);
 
 }
 

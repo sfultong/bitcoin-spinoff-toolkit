@@ -25,7 +25,7 @@ using namespace std;
 
 namespace bst {
 
-    bool recover_address(string& message, string& signature, vector<uint8_t>& paymentVector) {
+    bool recover_address(const string& message, const string& signature, vector<uint8_t>& paymentVector) {
         // convert signature string from base64
         bc::message_signature decodedSignature = bc::message_signature();
         bc::data_chunk chunk;

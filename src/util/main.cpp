@@ -90,7 +90,8 @@ void test_store_p2pkhs()
     bst::prepareForUTXOs(preparer);
     bst::writeUTXO(preparer, vector1, 24900000000);
     bst::writeUTXO(preparer, vector2, 99998237);
-    bst::writeSnapshot(preparer);
+    vector<uint8_t> block_hash = vector<uint8_t>(32);
+    bst::writeSnapshot(preparer, block_hash);
     bst::printSnapshot();
 }
 
@@ -106,7 +107,8 @@ void test_store_and_claim()
     bst::prepareForUTXOs(preparer);
     bst::writeUTXO(preparer, vector1, 24900000000);
     bst::writeUTXO(preparer, vector2, 99998237);
-    bst::writeSnapshot(preparer);
+    vector<uint8_t> block_hash = vector<uint8_t>(32);
+    bst::writeSnapshot(preparer, block_hash);
     string claim = "I claim funds.";
     string signature = "Hxc0sSkslD2mFE3HtHzIDRqSutQBiAQ+TxrsgVPeL3jWbXtcusuD77MTX7Tc/hJsQtVrbZsf9xpSDs+6Khx7nNk=";
     string signature2 = "H3ys4y9vnG2cvneZMo33Vvv1kQTKr2iCcBZZe78OFl8VaPbXYNwLVTtTh5K7Qu4MpdOQiVo+6SHq6pPSzdBm7PQ=";

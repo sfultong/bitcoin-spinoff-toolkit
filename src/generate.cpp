@@ -233,7 +233,7 @@ namespace bst {
         return true;
     }
 
-    bool writeSnapshot(snapshot_preparer& preparer)
+    bool writeSnapshot(snapshot_preparer& preparer, const vector<uint8_t>& blockhash)
     {
         char *zErrMsg = 0;
         int rc;
@@ -252,6 +252,7 @@ namespace bst {
 
         // get total number of p2pkh transactions
         snapshot_header header = snapshot_header();
+        copy(blockhash.begin(), blockhash.end(), header.block_hash.begin());
         sqlite3_stmt* stmt;
         string get_total_p2pkh = "select count(distinct pkh) from p2pkh;";
         rc = sqlite3_prepare_v2(preparer.db, get_total_p2pkh.c_str(), -1, &stmt, NULL);
@@ -308,7 +309,7 @@ namespace bst {
     {
         reader.snapshot.open(SNAPSHOT_NAME, ios::binary);
         reader.snapshot.read(reinterpret_cast<char*>(&reader.header.version), sizeof(reader.header.version));
-        reader.snapshot.read(reinterpret_cast<char*>(&reader.header.block_hash[0]), 20);
+        reader.snapshot.read(reinterpret_cast<char*>(&reader.header.block_hash[0]), 32);
         reader.snapshot.read(reinterpret_cast<char*>(&reader.header.nP2PKH), sizeof(reader.header.nP2PKH));
     }
 
@@ -358,7 +359,7 @@ namespace bst {
         while (low <= high)
         {
             uint64_t mid = (low + high) / 2;
-            uint64_t offset = 4 + 20 + 8 + mid * 28;
+            uint64_t offset = 4 + 32 + 8 + mid * 28;
             reader.snapshot.seekg(offset);
 
             vector<uint8_t> hashVec(20);

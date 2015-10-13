@@ -36,7 +36,7 @@ namespace bst {
         sha_hash block_hash;
         uint64_t nP2PKH;
 
-        snapshot_header() : version(0), block_hash(20), nP2PKH(0) { }
+        snapshot_header() : version(0), block_hash(32), nP2PKH(0) { }
     };
 
     struct snapshot_preparer {
@@ -57,7 +57,7 @@ namespace bst {
     bool prepareForUTXOs(snapshot_preparer& preparer);
     bool writeUTXO(snapshot_preparer& preparer, const vector<uint8_t>& pubkeyscript, const uint64_t amount);
     // also cleans up
-    bool writeSnapshot(snapshot_preparer& preparer);
+    bool writeSnapshot(snapshot_preparer& preparer, const vector<uint8_t>& blockhash);
     void prettyPrintVector(const vector<uint8_t>& vector, stringstream& ss);
     bool decodeVector(const string& vectorString, vector<uint8_t>& vector);
     void printSnapshot();

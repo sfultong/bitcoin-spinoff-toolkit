@@ -55,6 +55,8 @@ namespace bst {
     bool decodeVector(const string& vectorString, vector<uint8_t>& vector);
     void printSnapshot();
 
+    bool recover_address(string& message, string& signature, vector<uint8_t>& paymentVector);
+
 }
 
 #endif //SPINOFF_TOOLKIT_GENERATE_H

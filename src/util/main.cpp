@@ -29,6 +29,21 @@ void test_signing_check()
     cout << result << endl;
 }
 
+void test_recover_signature()
+{
+    string testEncodedAddress = "15BWWGJRtB8Z9NXmMAp94whujUK6SrmRwT";
+    string messageToSign = "hey there";
+    string signatureString = "HxXI251uSorWtrqkZejCljYlU+6s861evqN6u3IyYJVSaqYooYzvuSCf6TA0B+wJDOkqljz0fQgkvKjJHiBJgRg=";
+    cout << testEncodedAddress << endl;
+
+    vector<uint8_t> paymentVector = vector<uint8_t>(20);
+    bool result = bst::recover_address(messageToSign, signatureString, paymentVector);
+    bc::short_hash sh;
+    copy(paymentVector.begin(), paymentVector.end(), sh.begin());
+    bc::payment_address address(0, sh);
+    cout << result << " " << address.encoded() << endl;
+}
+
 void test_string_encode_decode()
 {
     string vectorString = "01AF0F10";
@@ -80,7 +95,8 @@ void test_store_p2pkhs()
 }
 
 int main() {
-    test_store_p2pkhs();
+    //test_store_p2pkhs();
+    test_recover_signature();
 
     return 0;
 }

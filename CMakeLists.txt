@@ -8,6 +8,8 @@ FIND_PACKAGE( Boost 1.57 COMPONENTS program_options REQUIRED )
 
 #libbitcoin
 set(LIBBITCOIN /nix/store/x7g501xv9inzriw999g2xksfsbzm966d-libbitcoin-2.9.0)
+
+# add in our dependencies
 include_directories(include ${LIBBITCOIN}/include ${Boost_INCLUDE_DIR})
 link_directories(${LIBBITCOIN}/lib)
 
@@ -19,6 +21,7 @@ set(SOURCE_FILES
         ${HEADER_FILES}
         src/generate.cpp
         src/sqlite3.c
+        src/key.cpp
 )
 add_library(spinoff_toolkit SHARED ${SOURCE_FILES})
 

@@ -99,25 +99,32 @@ void test_store_and_claim()
 {
     string transaction1 = "76A9142345FBB2B00E115C98C1D6E975C99B5431DE9CDE88AC";
     string transaction2 = "76A914992FA68A35E9706F5CE12036803DF00FF3003DC688AC";
+    string transaction3 = "2102f91ca5628d8a77fbf8e12fd098fdd871bdcb61c84cc3abf111a747b26ff6a2cbac";
     vector<uint8_t> vector1;
     vector<uint8_t> vector2;
+    vector<uint8_t> vector3;
     bst::decodeVector(transaction1, vector1);
     bst::decodeVector(transaction2, vector2);
+    bst::decodeVector(transaction3, vector3);
     bst::snapshot_preparer preparer;
     bst::prepareForUTXOs(preparer);
     bst::writeUTXO(preparer, vector1, 24900000000);
     bst::writeUTXO(preparer, vector2, 99998237);
+    bst::writeUTXO(preparer, vector3, 5000000643);
     vector<uint8_t> block_hash = vector<uint8_t>(32);
     bst::writeSnapshot(preparer, block_hash);
     string claim = "I claim funds.";
     string signature = "Hxc0sSkslD2mFE3HtHzIDRqSutQBiAQ+TxrsgVPeL3jWbXtcusuD77MTX7Tc/hJsQtVrbZsf9xpSDs+6Khx7nNk=";
     string signature2 = "H3ys4y9vnG2cvneZMo33Vvv1kQTKr2iCcBZZe78OFl8VaPbXYNwLVTtTh5K7Qu4MpdOQiVo+6SHq6pPSzdBm7PQ=";
+    string signature3 = "IIuXyLFeU+HVJnv9TPAGXnCnc0bCOi+enwjIWxsO5FmaMdVNBcRrkYGB07Qbdkghd+0XhnaUL3O+X+h4dzb0Kio=";
 
     bst::snapshot_reader reader;
     bst::openSnapshot(reader);
     uint64_t amount = bst::getP2PKHAmount(reader, claim, signature);
     cout << "found amount " << amount << endl;
     amount = bst::getP2PKHAmount(reader, claim, signature2);
+    cout << "found amount " << amount << endl;
+    amount = bst::getP2PKHAmount(reader, claim, signature3);
     cout << "found amount " << amount << endl;
 }
 

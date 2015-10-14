@@ -168,44 +168,40 @@ namespace bst {
         switch (script.type())
         {
             case bc::payment_type::pubkey:
-                break;
             case bc::payment_type::pubkey_hash:
             {
-                stringstream ss;
-                /*
-                prettyPrintVector(pubkeyscript, ss);
-                cout << ss.str() << " " << amount << endl;
-                ss.clear();
-                 */
-
-                vector<uint8_t>::const_iterator keystart = pubkeyscript.begin() + 3;
-                vector<uint8_t>::const_iterator keyend = pubkeyscript.begin() + 23;
-                vector<uint8_t> key(keystart, keyend);
-                prettyPrintVector(key, ss);
-                string keyString = ss.str();
-                rc = sqlite3_bind_text(preparer.insert_p2pkh, 1, keyString.c_str(), -1, NULL);
-                if (rc != SQLITE_OK)
+                bc::payment_address paymentAddress;
+                if (bc::extract(paymentAddress, script))
                 {
-                    cout << "error binding address hash " << rc << endl;
-                    return false;
-                }
-                rc = sqlite3_bind_int64(preparer.insert_p2pkh, 2, amount);
-                if (rc != SQLITE_OK)
-                {
-                    cout << "error binding amount" << rc << endl;
-                    return false;
-                }
-                rc = sqlite3_step(preparer.insert_p2pkh);
-                if (rc != SQLITE_DONE)
-                {
-                    cout << "error writing row " << rc << endl;
-                    return false;
-                }
-                rc = sqlite3_reset(preparer.insert_p2pkh);
-                if (rc != SQLITE_OK)
-                {
-                    cout << "error resetting prepared statement" << rc << endl;
-                    return false;
+                    stringstream ss;
+                    vector<uint8_t> short_hash = vector<uint8_t>(20);
+                    copy(paymentAddress.hash().begin(), paymentAddress.hash().end(), short_hash.begin());
+                    prettyPrintVector(short_hash, ss);
+                    string keyString = ss.str();
+                    rc = sqlite3_bind_text(preparer.insert_p2pkh, 1, keyString.c_str(), -1, NULL);
+                    if (rc != SQLITE_OK)
+                    {
+                        cout << "error binding address hash " << rc << endl;
+                        return false;
+                    }
+                    rc = sqlite3_bind_int64(preparer.insert_p2pkh, 2, amount);
+                    if (rc != SQLITE_OK)
+                    {
+                        cout << "error binding amount" << rc << endl;
+                        return false;
+                    }
+                    rc = sqlite3_step(preparer.insert_p2pkh);
+                    if (rc != SQLITE_DONE)
+                    {
+                        cout << "error writing row " << rc << endl;
+                        return false;
+                    }
+                    rc = sqlite3_reset(preparer.insert_p2pkh);
+                    if (rc != SQLITE_OK)
+                    {
+                        cout << "error resetting prepared statement" << rc << endl;
+                        return false;
+                    }
                 }
             }
                 break;

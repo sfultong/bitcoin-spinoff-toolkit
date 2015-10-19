@@ -128,8 +128,36 @@ void test_store_and_claim()
     cout << "found amount " << amount << endl;
 }
 
+void test_validate_multisig()
+{
+    string transaction_string = "0100000001a9dd2ae0a5d513a336a2c61db3472e260443eb79ffbd07e154829574c1fa2f3901000000fc00"
+        "473044022062b5798436e9524c267f5c03c0601743db0cd3e57722c87a48a51d3af4089ccc02200f00f9e244e1fc6fa8141a4e90fa"
+        "43b0423d5eda7a1d6d9eb6f6a375337ceda30147304402204ae544e90a9cdf70db7a571cc44a7dcdc0c9f5cbffea6172d7d8ef625d"
+        "ea0758022074c3fa6437c60a762dd49075d80855eec78ea27fafff5e78fb70e07985c9f833014c69522102f91ca5628d8a77fbf8e1"
+        "2fd098fdd871bdcb61c84cc3abf111a747b26ff6a2cb2103b708d33d5452ce8232fe096220ad2aaea4aa68ce0f0869e6321e93c88c"
+        "f5ce082103917f030d239db795047bb5eb66713838221134e103eee2da5619c0cd938e6f6953aeffffffff0170c9fa020000000019"
+        "76a914f2f5bbdea2763591bb5c7552df7d6fe46204bc7588ac00000000";
+    bc::data_chunk transaction_chunk;
+    bc::decode_base16(transaction_chunk, transaction_string);
+    bc::transaction_type transaction;
+    bc::satoshi_load(transaction_chunk.begin(), transaction_chunk.end(), transaction);
+
+    string output_string = "a91489a16fbc4929fc7c83ada40641411c09fe4b76d887";
+    bc::data_chunk output_chunk;
+    bc::decode_base16(output_chunk, output_string);
+    bc::script_type output_script = bc::parse_script(output_chunk);
+
+    bc::script_type input_script = transaction.inputs[0].script;
+    bool result = output_script.run(input_script, transaction, 0);
+
+    cout << bc::pretty(transaction) << endl;
+    cout << bc::pretty(output_script) << endl;
+    cout << "result " << result << endl;
+
+}
+
 int main() {
-    test_store_and_claim();
+    test_validate_multisig();
 
     return 0;
 }

@@ -39,6 +39,7 @@ namespace bst {
 
         snapshot_header() : version(0), block_hash(32), nP2PKH(0), nP2SH(0) { }
     };
+    static const int HEADER_SIZE = 4 + 32 + 8 + 8;
 
     struct snapshot_preparer {
         sqlite3 *db;
@@ -68,7 +69,7 @@ namespace bst {
 
     bool recover_address(const string& message, const string& signature, vector<uint8_t>& paymentVector);
     uint64_t getP2PKHAmount(snapshot_reader& reader, const string& claim, const string& signature);
-    uint64_t getP2SHAmount(snapshot_reader& reader, const string& transaction, const string& address, const int input_index);
+    uint64_t getP2SHAmount(snapshot_reader& reader, const string& transaction, const string& address, const uint32_t input_index);
 
 }
 

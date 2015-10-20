@@ -466,7 +466,7 @@ namespace bst {
         while (low <= high)
         {
             uint64_t mid = (low + high) / 2;
-            uint64_t offset = 4 + 32 + 8 + mid * 28;
+            uint64_t offset = HEADER_SIZE + mid * 28;
             reader.snapshot.seekg(offset);
 
             vector<uint8_t> hashVec(20);
@@ -484,6 +484,58 @@ namespace bst {
                 high = mid - 1;
             } else {
                 low = mid + 1;
+            }
+        }
+        return 0;
+    }
+
+    uint64_t getP2SHAmount(snapshot_reader& reader, const string& transaction, const string& address, const uint32_t input_index)
+    {
+        bc::payment_address payment_address = bc::payment_address(address);
+        vector<uint8_t> claimVector = vector<uint8_t>(payment_address.hash().begin(), payment_address.hash().end());
+
+        // construct output script from script hash
+        vector<uint8_t> output_vector = vector<uint8_t>(23);
+        copy(claimVector.begin(), claimVector.end(), output_vector.begin() + 2);
+        output_vector[0] = (uint8_t) bc::opcode::hash160;
+        output_vector[1] = 0x14; // special - 20 bytes of data follow
+        output_vector[22] = (uint8_t) bc::opcode::equal;
+        bc::array_slice<uint8_t> output_slice(output_vector);
+        bc::script_type output_script = bc::parse_script(output_slice);
+
+        // construct transaction
+        bc::data_chunk transaction_chunk;
+        bc::decode_base16(transaction_chunk, transaction);
+        bc::transaction_type transaction_type;
+        bc::satoshi_load(transaction_chunk.begin(), transaction_chunk.end(), transaction_type);
+        bc::script_type input_script = transaction_type.inputs[input_index].script;
+
+        // if transaction validates against output script, find amount in snapshot
+        if ( output_script.run(input_script, transaction_type, input_index))
+        {
+            uint64_t low = 0;
+            uint64_t high = reader.header.nP2SH;
+            while (low <= high) {
+                uint64_t mid = (low + high) / 2;
+                uint64_t offset = HEADER_SIZE + reader.header.nP2PKH * 28 + mid * 28;
+                reader.snapshot.seekg(offset);
+
+                vector<uint8_t> hashVec(20);
+                reader.snapshot.read(reinterpret_cast<char*>(&hashVec[0]), 20);
+
+                int comparison = compare(claimVector, hashVec);
+                if (comparison == 0)
+                {
+                    uint64_t amount;
+                    reader.snapshot.read(reinterpret_cast<char*>(&amount), sizeof(amount));
+                    return amount;
+                }
+                if (comparison < 0)
+                {
+                    high = mid - 1;
+                } else {
+                    low = mid + 1;
+                }
             }
         }
         return 0;

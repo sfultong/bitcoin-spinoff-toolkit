@@ -63,14 +63,23 @@ namespace bst {
         return 0;
     }
 
-    static const string CREATE_TABLE = "create table p2pkh ("
+    static const string CREATE_P2PKH_TABLE = "create table p2pkh ("
                 "id integer primary key,"
                 "pkh char(20),"
                 "amount integer"
                 ");";
-    static const string CREATE_INDEX = "create index p2pkh_pkh on p2pkh (pkh);";
+    static const string CREATE_P2SH_TABLE = "create table p2sh ("
+            "id integer primary key,"
+            "sh char(20),"
+            "amount integer"
+            ");";
+
+    static const string CREATE_P2PKH_INDEX = "create index p2pkh_pkh on p2pkh (pkh);";
+    static const string CREATE_P2SH_INDEX = "create index p2sh_sh on p2sh (sh);";
     static const string INSERT_P2PKH = "insert into p2pkh (pkh, amount) values (?, ?)";
+    static const string INSERT_P2SH = "insert into p2sh (sh, amount) values (?, ?)";
     static const string GET_ALL_P2PKH = "select pkh, sum(amount) from p2pkh group by pkh order by pkh";
+    static const string GET_ALL_P2SH = "select sh, sum(amount) from p2sh group by sh order by sh";
     bool prepareForUTXOs(snapshot_preparer& preparer)
     {
         preparer.transaction_count = 0;
@@ -84,14 +93,28 @@ namespace bst {
             return false;
         }
 
-        rc = sqlite3_exec(preparer.db, CREATE_TABLE.c_str(), callback, 0, &zErrMsg);
+        rc = sqlite3_exec(preparer.db, CREATE_P2PKH_TABLE.c_str(), callback, 0, &zErrMsg);
         if( rc!=SQLITE_OK ){
             fprintf(stderr, "SQL error: %s\n", zErrMsg);
             sqlite3_free(zErrMsg);
             return false;
         }
 
-        rc = sqlite3_exec(preparer.db, CREATE_INDEX.c_str(), callback, 0, &zErrMsg);
+        rc = sqlite3_exec(preparer.db, CREATE_P2PKH_INDEX.c_str(), callback, 0, &zErrMsg);
+        if( rc!=SQLITE_OK ){
+            fprintf(stderr, "SQL error: %s\n", zErrMsg);
+            sqlite3_free(zErrMsg);
+            return false;
+        }
+
+        rc = sqlite3_exec(preparer.db, CREATE_P2SH_TABLE.c_str(), callback, 0, &zErrMsg);
+        if( rc!=SQLITE_OK ){
+            fprintf(stderr, "SQL error: %s\n", zErrMsg);
+            sqlite3_free(zErrMsg);
+            return false;
+        }
+
+        rc = sqlite3_exec(preparer.db, CREATE_P2SH_INDEX.c_str(), callback, 0, &zErrMsg);
         if( rc!=SQLITE_OK ){
             fprintf(stderr, "SQL error: %s\n", zErrMsg);
             sqlite3_free(zErrMsg);
@@ -100,6 +123,8 @@ namespace bst {
 
         sqlite3_prepare_v2(preparer.db, INSERT_P2PKH.c_str(), -1, &preparer.insert_p2pkh, NULL);
         sqlite3_prepare_v2(preparer.db, GET_ALL_P2PKH.c_str(), -1, &preparer.get_all_p2pkh, NULL);
+        sqlite3_prepare_v2(preparer.db, INSERT_P2SH.c_str(), -1, &preparer.insert_p2sh, NULL);
+        sqlite3_prepare_v2(preparer.db, GET_ALL_P2SH.c_str(), -1, &preparer.get_all_p2sh, NULL);
         return true;
     }
 
@@ -206,8 +231,40 @@ namespace bst {
             }
                 break;
             case bc::payment_type::multisig:
+                // not implemented in libbitcoin 2.9.0, I can't see how it will ever be
                 break;
             case bc::payment_type::script_hash:
+            {
+                bc::payment_address paymentAddress;
+                if (bc::extract(paymentAddress, script))
+                {
+                    string keyString = bc::encode_base16(paymentAddress.hash());
+                    rc = sqlite3_bind_text(preparer.insert_p2sh, 1, keyString.c_str(), -1, NULL);
+                    if (rc != SQLITE_OK)
+                    {
+                        cout << "error binding address hash " << rc << endl;
+                        return false;
+                    }
+                    rc = sqlite3_bind_int64(preparer.insert_p2sh, 2, amount);
+                    if (rc != SQLITE_OK)
+                    {
+                        cout << "error binding amount" << rc << endl;
+                        return false;
+                    }
+                    rc = sqlite3_step(preparer.insert_p2sh);
+                    if (rc != SQLITE_DONE)
+                    {
+                        cout << "error writing row " << rc << endl;
+                        return false;
+                    }
+                    rc = sqlite3_reset(preparer.insert_p2sh);
+                    if (rc != SQLITE_OK)
+                    {
+                        cout << "error resetting prepared statement" << rc << endl;
+                        return false;
+                    }
+                }
+            }
                 break;
             default:
                 break;
@@ -256,12 +313,20 @@ namespace bst {
         header.nP2PKH = sqlite3_column_int64(stmt, 0);
         rc = sqlite3_finalize(stmt);
 
+        // get total number of p2sh transactions
+        string get_total_p2sh = "select count(distinct sh) from p2sh;";
+        rc = sqlite3_prepare_v2(preparer.db, get_total_p2sh.c_str(), -1, &stmt, NULL);
+        rc = sqlite3_step(stmt);
+        header.nP2SH = sqlite3_column_int64(stmt, 0);
+        rc = sqlite3_finalize(stmt);
+
         // write snapshot header
         ofstream snapshot;
         snapshot.open(SNAPSHOT_NAME, ios::binary);
         snapshot.write(reinterpret_cast<const char*>(&header.version), sizeof(header.version));
         copy(header.block_hash.begin(), header.block_hash.end(), ostream_iterator<uint8_t>(snapshot));
         snapshot.write(reinterpret_cast<const char*>(&header.nP2PKH), sizeof(header.nP2PKH));
+        snapshot.write(reinterpret_cast<const char*>(&header.nP2SH), sizeof(header.nP2SH));
 
         // write all p2pkh to snapshot
         rc = sqlite3_prepare_v2(preparer.db, GET_ALL_P2PKH.c_str(), -1, &stmt, NULL);
@@ -288,8 +353,39 @@ namespace bst {
 
         if (SQLITE_DONE != rc)
         {
-            cout << "could not get all rows: " << rc << endl;
+            cout << "could not get all p2pkh rows: " << rc << endl;
         }
+        rc = sqlite3_finalize(stmt);
+
+        // write all p2sh to snapshot
+        rc = sqlite3_prepare_v2(preparer.db, GET_ALL_P2SH.c_str(), -1, &stmt, NULL);
+        if( rc!=SQLITE_OK ){
+            cout << "Could not prepare statement for getting all p2sh" << endl;
+        }
+
+        while (SQLITE_ROW == (rc = sqlite3_step(stmt))) {
+
+            const unsigned char* keyCString = sqlite3_column_text(stmt, 0);
+            stringstream ss;
+            ss << keyCString;
+            bc::data_chunk chunk;
+
+            if ( ! bc::decode_base16(chunk, ss.str()))
+            {
+                cout << "error decoding " << ss.str() << endl;
+                return 0;
+            }
+            copy(chunk.begin(), chunk.end(), ostream_iterator<uint8_t>(snapshot));
+
+            uint64_t amount = sqlite3_column_int64(stmt, 1);
+            snapshot.write(reinterpret_cast<const char*>(&amount), sizeof(amount));
+        }
+
+        if (SQLITE_DONE != rc)
+        {
+            cout << "could not get all p2sh rows: " << rc << endl;
+        }
+        rc = sqlite3_finalize(stmt);
 
         sqlite3_close(preparer.db);
 
@@ -307,6 +403,7 @@ namespace bst {
         reader.snapshot.read(reinterpret_cast<char*>(&reader.header.version), sizeof(reader.header.version));
         reader.snapshot.read(reinterpret_cast<char*>(&reader.header.block_hash[0]), 32);
         reader.snapshot.read(reinterpret_cast<char*>(&reader.header.nP2PKH), sizeof(reader.header.nP2PKH));
+        reader.snapshot.read(reinterpret_cast<char*>(&reader.header.nP2SH), sizeof(reader.header.nP2SH));
     }
 
     void printSnapshot()
@@ -314,12 +411,26 @@ namespace bst {
         snapshot_reader reader;
         openSnapshot(reader);
 
+        cout << "p2pkh:" << endl;
         for (int i = 0; i < reader.header.nP2PKH; i++) {
             vector<uint8_t> hashVec(20);
             reader.snapshot.read(reinterpret_cast<char*>(&hashVec[0]), 20);
             bc::short_hash sh;
             copy(hashVec.begin(), hashVec.end(), sh.begin());
             bc::payment_address address(111, sh);
+
+            uint64_t amount;
+            reader.snapshot.read(reinterpret_cast<char*>(&amount), sizeof(amount));
+            cout << address.encoded() << " " << amount << endl;
+        }
+
+        cout << "p2sh:" << endl;
+        for (int i = 0; i < reader.header.nP2SH; i++) {
+            vector<uint8_t> hashVec(20);
+            reader.snapshot.read(reinterpret_cast<char*>(&hashVec[0]), 20);
+            bc::short_hash sh;
+            copy(hashVec.begin(), hashVec.end(), sh.begin());
+            bc::payment_address address(196, sh);
 
             uint64_t amount;
             reader.snapshot.read(reinterpret_cast<char*>(&amount), sizeof(amount));

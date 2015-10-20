@@ -35,14 +35,17 @@ namespace bst {
         uint32_t version;
         sha_hash block_hash;
         uint64_t nP2PKH;
+        uint64_t nP2SH;
 
-        snapshot_header() : version(0), block_hash(32), nP2PKH(0) { }
+        snapshot_header() : version(0), block_hash(32), nP2PKH(0), nP2SH(0) { }
     };
 
     struct snapshot_preparer {
         sqlite3 *db;
         sqlite3_stmt *insert_p2pkh;
         sqlite3_stmt *get_all_p2pkh;
+        sqlite3_stmt *insert_p2sh;
+        sqlite3_stmt *get_all_p2sh;
         uint8_t address_prefix;
         int transaction_count;
     };
@@ -65,6 +68,7 @@ namespace bst {
 
     bool recover_address(const string& message, const string& signature, vector<uint8_t>& paymentVector);
     uint64_t getP2PKHAmount(snapshot_reader& reader, const string& claim, const string& signature);
+    uint64_t getP2SHAmount(snapshot_reader& reader, const string& transaction, const string& address, const int input_index);
 
 }
 

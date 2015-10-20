@@ -95,6 +95,24 @@ void test_store_p2pkhs()
     bst::printSnapshot();
 }
 
+void test_store_p2pkhs_and_p2sh()
+{
+    string transaction1 = "76A9142345FBB2B00E115C98C1D6E975C99B5431DE9CDE88AC";
+    string transaction2 = "a91489a16fbc4929fc7c83ada40641411c09fe4b76d887";
+    vector<uint8_t> vector1;
+    vector<uint8_t> vector2;
+    bst::decodeVector(transaction1, vector1);
+    bst::decodeVector(transaction2, vector2);
+
+    bst::snapshot_preparer preparer;
+    bst::prepareForUTXOs(preparer);
+    bst::writeUTXO(preparer, vector1, 10);
+    bst::writeUTXO(preparer, vector2, 20);
+    vector<uint8_t> block_hash = vector<uint8_t>(32);
+    bst::writeSnapshot(preparer, block_hash);
+    bst::printSnapshot();
+}
+
 void test_store_and_claim()
 {
     string transaction1 = "76A9142345FBB2B00E115C98C1D6E975C99B5431DE9CDE88AC";
@@ -157,7 +175,8 @@ void test_validate_multisig()
 }
 
 int main() {
-    test_validate_multisig();
+    //test_validate_multisig();
+    test_store_p2pkhs_and_p2sh();
 
     return 0;
 }

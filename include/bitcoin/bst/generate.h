@@ -49,6 +49,7 @@ namespace bst {
         sqlite3_stmt *get_all_p2sh;
         uint8_t address_prefix;
         int transaction_count;
+        bool debug;
     };
 
     struct snapshot_reader

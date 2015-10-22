@@ -195,6 +195,12 @@ namespace bst {
             case bc::payment_type::pubkey:
             case bc::payment_type::pubkey_hash:
             {
+                if (preparer.debug)
+                {
+                    string transactionString = bc::encode_base16(slice);
+                    cout << "recording p2pkh transaction " << transactionString << endl;
+                }
+
                 bc::payment_address paymentAddress;
                 if (bc::extract(paymentAddress, script))
                 {
@@ -235,6 +241,12 @@ namespace bst {
                 break;
             case bc::payment_type::script_hash:
             {
+                if (preparer.debug)
+                {
+                    string transactionString = bc::encode_base16(slice);
+                    cout << "recording p2sh transaction " << transactionString << endl;
+                }
+
                 bc::payment_address paymentAddress;
                 if (bc::extract(paymentAddress, script))
                 {
@@ -267,6 +279,11 @@ namespace bst {
             }
                 break;
             default:
+                if (preparer.debug)
+                {
+                    string transactionString = bc::encode_base16(slice);
+                    cout << "recording strange transaction " << transactionString << endl;
+                }
                 break;
         }
 

@@ -25,8 +25,14 @@ void test_signing_check()
     string messageToSign = "hey there";
     string signatureString = "HxXI251uSorWtrqkZejCljYlU+6s861evqN6u3IyYJVSaqYooYzvuSCf6TA0B+wJDOkqljz0fQgkvKjJHiBJgRg=";
 
+    string expected = "wow, we verified this";
     string result = bst::getVerificationMessage(testEncodedAddress, messageToSign, signatureString);
-    cout << result << endl;
+    if (result != expected)
+    {
+        cout << "test_signing_check---" << endl;
+        cout << "expected: " << expected << endl;
+        cout << "result  : " << result << endl;
+    }
 }
 
 void test_recover_signature()
@@ -34,38 +40,27 @@ void test_recover_signature()
     string testEncodedAddress = "15BWWGJRtB8Z9NXmMAp94whujUK6SrmRwT";
     string messageToSign = "hey there";
     string signatureString = "HxXI251uSorWtrqkZejCljYlU+6s861evqN6u3IyYJVSaqYooYzvuSCf6TA0B+wJDOkqljz0fQgkvKjJHiBJgRg=";
-    cout << testEncodedAddress << endl;
 
     vector<uint8_t> paymentVector = vector<uint8_t>(20);
     bool result = bst::recover_address(messageToSign, signatureString, paymentVector);
+    if (! result)
+    {
+        cout << "test_recover_signature---" << endl;
+        cout << "failed to recover address" << endl;
+    }
     bc::short_hash sh;
     copy(paymentVector.begin(), paymentVector.end(), sh.begin());
     bc::payment_address address(0, sh);
-    cout << result << " " << address.encoded() << endl;
+    string recoveredAddress = address.encoded();
+    if (testEncodedAddress != recoveredAddress)
+    {
+        cout << "test_recover_signature---" << endl;
+        cout << "expected: " << testEncodedAddress << endl;
+        cout << "result:   " << recoveredAddress << endl;
+    }
 }
 
-void test_string_encode_decode()
-{
-    string vectorString = "01AF0F10";
-    vector<uint8_t> testVec;
-    bst::decodeVector(vectorString, testVec);
-    stringstream ss;
-    bst::prettyPrintVector(testVec, ss);
-    string s = ss.str();
-    cout << vectorString << endl << s << endl;
-}
-
-void test_string_encode_decode2()
-{
-    string vectorString = "992fa68a35e9706f5ce12036803df00ff3003dc6";
-    vector<uint8_t> testVec;
-    bst::decodeVector(vectorString, testVec);
-    stringstream ss;
-    bst::prettyPrintVector(testVec, ss);
-    string s = ss.str();
-    cout << vectorString << endl << s << endl;
-}
-
+// only really tests libbitcoin, ignore
 void test_address_encoding()
 {
     string short_hash = "992fa68a35e9706f5ce12036803df00ff3003dc6";
@@ -128,6 +123,7 @@ void test_store_and_claim()
     bst::decodeVector(transaction3, vector3);
     bst::decodeVector(transaction4, vector4);
     bst::snapshot_preparer preparer;
+    preparer.debug = false;
     bst::prepareForUTXOs(preparer);
     bst::writeUTXO(preparer, vector1, 24900000000);
     bst::writeUTXO(preparer, vector2, 99998237);
@@ -142,12 +138,30 @@ void test_store_and_claim()
 
     bst::snapshot_reader reader;
     bst::openSnapshot(reader);
+    uint64_t expected = 24900000000;
     uint64_t amount = bst::getP2PKHAmount(reader, claim, signature);
-    cout << "found amount " << amount << endl;
+    if (amount != expected)
+    {
+        cout << "test_store_and_claim--- 1" << endl;
+        cout << "expected: " << expected << endl;
+        cout << "result  : " << amount << endl;
+    }
+    expected = 99998237;
     amount = bst::getP2PKHAmount(reader, claim, signature2);
-    cout << "found amount " << amount << endl;
+    if (amount != expected)
+    {
+        cout << "test_store_and_claim--- 2" << endl;
+        cout << "expected: " << expected << endl;
+        cout << "result  : " << amount << endl;
+    }
+    expected = 5000000643;
     amount = bst::getP2PKHAmount(reader, claim, signature3);
-    cout << "found amount " << amount << endl;
+    if (amount != expected)
+    {
+        cout << "test_store_and_claim--- 3" << endl;
+        cout << "expected: " << expected << endl;
+        cout << "result  : " << amount << endl;
+    }
 
     // now for the p2sh finale
     string transaction_string = "0100000001a9dd2ae0a5d513a336a2c61db3472e260443eb79ffbd07e154829574c1fa2f3901000000fc00"
@@ -158,10 +172,17 @@ void test_store_and_claim()
             "f5ce082103917f030d239db795047bb5eb66713838221134e103eee2da5619c0cd938e6f6953aeffffffff0170c9fa020000000019"
             "76a914f2f5bbdea2763591bb5c7552df7d6fe46204bc7588ac00000000";
     string p2sh_address = "2N5nwxNF6Fe91RPExcwcaqPPpV14CSo9cEc";
+    expected = 123456;
     amount = bst::getP2SHAmount(reader, transaction_string, p2sh_address, 0);
-    cout << "found amount " << amount << endl;
+    if (amount != expected)
+    {
+        cout << "test_store_and_claim--- 4" << endl;
+        cout << "expected: " << expected << endl;
+        cout << "result  : " << amount << endl;
+    }
 }
 
+// only tests libbitcoin code, ignore
 void test_validate_multisig()
 {
     string transaction_string = "0100000001a9dd2ae0a5d513a336a2c61db3472e260443eb79ffbd07e154829574c1fa2f3901000000fc00"
@@ -189,10 +210,18 @@ void test_validate_multisig()
     cout << "result " << result << endl;
 }
 
+void test_all()
+{
+    test_signing_check();
+    test_recover_signature();
+    test_store_and_claim();
+}
+
 int main() {
     //test_validate_multisig();
     //test_store_p2pkhs_and_p2sh();
-    test_store_and_claim();
+    //test_store_and_claim();
+    test_all();
 
     return 0;
 }

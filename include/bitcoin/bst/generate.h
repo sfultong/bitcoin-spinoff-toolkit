@@ -63,6 +63,7 @@ namespace bst {
     bool writeUTXO(snapshot_preparer& preparer, const vector<uint8_t>& pubkeyscript, const uint64_t amount);
     // also cleans up
     bool writeSnapshot(snapshot_preparer& preparer, const vector<uint8_t>& blockhash);
+    bool writeJustSqlite(snapshot_preparer& preparer);
     void prettyPrintVector(const vector<uint8_t>& vector, stringstream& ss);
     bool decodeVector(const string& vectorString, vector<uint8_t>& vector);
     void printSnapshot();

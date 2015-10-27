@@ -236,9 +236,6 @@ namespace bst {
                 }
             }
                 break;
-            case bc::payment_type::multisig:
-                // not implemented in libbitcoin 2.9.0, I can't see how it will ever be
-                break;
             case bc::payment_type::script_hash:
             {
                 if (preparer.debug)
@@ -279,11 +276,41 @@ namespace bst {
             }
                 break;
             default:
+            {
                 if (preparer.debug)
                 {
                     string transactionString = bc::encode_base16(slice);
                     cout << "recording strange transaction " << transactionString << endl;
                 }
+
+                // treat all non-standard transactions as P2SH
+                bc::short_hash hash = bc::bitcoin_short_hash(slice);
+                string keyString = bc::encode_base16(hash);
+                rc = sqlite3_bind_text(preparer.insert_p2sh, 1, keyString.c_str(), -1, NULL);
+                if (rc != SQLITE_OK)
+                {
+                    cout << "error binding address hash " << rc << endl;
+                    return false;
+                }
+                rc = sqlite3_bind_int64(preparer.insert_p2sh, 2, amount);
+                if (rc != SQLITE_OK)
+                {
+                    cout << "error binding amount" << rc << endl;
+                    return false;
+                }
+                rc = sqlite3_step(preparer.insert_p2sh);
+                if (rc != SQLITE_DONE)
+                {
+                    cout << "error writing row " << rc << endl;
+                    return false;
+                }
+                rc = sqlite3_reset(preparer.insert_p2sh);
+                if (rc != SQLITE_OK)
+                {
+                    cout << "error resetting prepared statement" << rc << endl;
+                    return false;
+                }
+            }
                 break;
         }
 
@@ -298,6 +325,39 @@ namespace bst {
                 sqlite3_free(zErrMsg);
             }
             preparer.transaction_count = 0;
+        }
+
+        return true;
+    }
+
+    bool writeJustSqlite(snapshot_preparer& preparer)
+    {
+        char *zErrMsg = 0;
+        int rc;
+
+        // commit the last transaction, if there is one
+        if (preparer.transaction_count != 0)
+        {
+            string commit = "COMMIT;";
+            rc = sqlite3_exec(preparer.db, commit.c_str(), callback, 0, &zErrMsg);
+            if( rc!=SQLITE_OK ){
+                fprintf(stderr, "SQL error: %s\n", zErrMsg);
+                sqlite3_free(zErrMsg);
+                return false;
+            }
+            preparer.transaction_count = 0;
+        }
+
+        sqlite3_finalize(preparer.insert_p2pkh);
+        sqlite3_finalize(preparer.insert_p2sh);
+        sqlite3_finalize(preparer.get_all_p2pkh);
+        sqlite3_finalize(preparer.get_all_p2sh);
+
+        rc = sqlite3_close(preparer.db);
+        if( rc!=SQLITE_OK ){
+            fprintf(stderr, "SQL error: %s\n", zErrMsg);
+            sqlite3_free(zErrMsg);
+            return false;
         }
 
         return true;

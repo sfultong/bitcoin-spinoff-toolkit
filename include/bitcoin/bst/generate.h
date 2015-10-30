@@ -18,28 +18,11 @@
 
 #include <fstream>
 #include <sqlite3.h>
+#include "common.h"
 
 using namespace std;
 
 namespace bst {
-
-    typedef std::vector<uint8_t> short_hash;
-    typedef std::vector<uint8_t> sha_hash;
-
-    /*
-    Version            01 00 00 00                                                 4 bytes (uint32)
-    Blockhash          hash of Bitcoin block that snapshot was taken from          32 bytes
-    nP2PKH             the number of P2PKH to be claimed                           8 bytes (uint64)
-     */
-    struct snapshot_header {
-        uint32_t version;
-        sha_hash block_hash;
-        uint64_t nP2PKH;
-        uint64_t nP2SH;
-
-        snapshot_header() : version(0), block_hash(32), nP2PKH(0), nP2SH(0) { }
-    };
-    static const int HEADER_SIZE = 4 + 32 + 8 + 8;
 
     struct snapshot_preparer {
         sqlite3 *db;
@@ -52,26 +35,11 @@ namespace bst {
         bool debug;
     };
 
-    struct snapshot_reader
-    {
-        ifstream snapshot;
-        snapshot_header header;
-    };
-
-    string getVerificationMessage(string address, string message, string signature);
     bool prepareForUTXOs(snapshot_preparer& preparer);
-    bool writeUTXO(snapshot_preparer& preparer, const vector<uint8_t>& pubkeyscript, const uint64_t amount);
+    bool writeUTXO(snapshot_preparer& preparer, const uint160_t& pubkeyscript, const uint64_t amount);
     // also cleans up
-    bool writeSnapshot(snapshot_preparer& preparer, const vector<uint8_t>& blockhash);
+    bool writeSnapshot(snapshot_preparer& preparer, const uint256_t& blockhash);
     bool writeJustSqlite(snapshot_preparer& preparer);
-    void prettyPrintVector(const vector<uint8_t>& vector, stringstream& ss);
-    bool decodeVector(const string& vectorString, vector<uint8_t>& vector);
-    void printSnapshot();
-    bool openSnapshot(snapshot_reader& reader);
-
-    bool recover_address(const string& message, const string& signature, vector<uint8_t>& paymentVector);
-    uint64_t getP2PKHAmount(snapshot_reader& reader, const string& claim, const string& signature);
-    uint64_t getP2SHAmount(snapshot_reader& reader, const string& transaction, const string& address, const uint32_t input_index);
 
 }
 

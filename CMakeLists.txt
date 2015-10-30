@@ -15,11 +15,15 @@ link_directories(${LIBBITCOIN}/lib)
 
 #bst library
 set(HEADER_FILES
+        include/bitcoin/bst/common.h
         include/bitcoin/bst/generate.h
+        include/bitcoin/bst/claim.h
+        include/bitcoin/bst/misc.h
 )
 set(SOURCE_FILES
         ${HEADER_FILES}
         src/generate.cpp
+        src/claim.cpp
         src/sqlite3.c
         src/key.cpp
 )

@@ -16,6 +16,8 @@
 #include <iostream>
 #include <bitcoin/bitcoin.hpp>
 #include "bitcoin/bst/generate.h"
+#include "bitcoin/bst/claim.h"
+#include "bitcoin/bst/misc.h"
 
 using namespace std;
 

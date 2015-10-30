@@ -188,145 +188,117 @@ namespace bst {
         }
 
         bc::array_slice<uint8_t> slice(pubkeyscript);
-        bc::script_type script = bc::parse_script(slice);
-        switch (script.type())
-        {
-            case bc::payment_type::pubkey:
-            case bc::payment_type::pubkey_hash:
-            {
-                if (preparer.debug)
-                {
-                    string transactionString = bc::encode_base16(slice);
-                    cout << "recording p2pkh transaction " << transactionString << endl;
-                }
+        string keyString;
+        sqlite3_stmt* insert;
 
-                bc::payment_address paymentAddress;
-                if (bc::extract(paymentAddress, script))
-                {
-                    stringstream ss;
-                    vector<uint8_t> short_hash = vector<uint8_t>(20);
-                    copy(paymentAddress.hash().begin(), paymentAddress.hash().end(), short_hash.begin());
-                    prettyPrintVector(short_hash, ss);
-                    string keyString = ss.str();
-                    rc = sqlite3_bind_text(preparer.insert_p2pkh, 1, keyString.c_str(), -1, NULL);
-                    if (rc != SQLITE_OK)
-                    {
-                        cout << "error binding address hash " << rc << endl;
-                        return false;
-                    }
-                    rc = sqlite3_bind_int64(preparer.insert_p2pkh, 2, amount);
-                    if (rc != SQLITE_OK)
-                    {
-                        cout << "error binding amount" << rc << endl;
-                        return false;
-                    }
-                    rc = sqlite3_step(preparer.insert_p2pkh);
-                    if (rc != SQLITE_DONE)
-                    {
-                        cout << "error writing row " << rc << endl;
-                        return false;
-                    }
-                    rc = sqlite3_reset(preparer.insert_p2pkh);
-                    if (rc != SQLITE_OK)
-                    {
-                        cout << "error resetting prepared statement" << rc << endl;
-                        return false;
-                    }
-                }
-            }
-                break;
-            case bc::payment_type::script_hash:
-            {
-                if (preparer.debug)
-                {
-                    string transactionString = bc::encode_base16(slice);
-                    cout << "recording p2sh transaction " << transactionString << endl;
-                }
+        try {
+            bc::script_type script = bc::parse_script(slice);
 
-                bc::payment_address paymentAddress;
-                if (bc::extract(paymentAddress, script))
-                {
-                    string keyString = bc::encode_base16(paymentAddress.hash());
-                    rc = sqlite3_bind_text(preparer.insert_p2sh, 1, keyString.c_str(), -1, NULL);
-                    if (rc != SQLITE_OK)
-                    {
-                        cout << "error binding address hash " << rc << endl;
-                        return false;
-                    }
-                    rc = sqlite3_bind_int64(preparer.insert_p2sh, 2, amount);
-                    if (rc != SQLITE_OK)
-                    {
-                        cout << "error binding amount" << rc << endl;
-                        return false;
-                    }
-                    rc = sqlite3_step(preparer.insert_p2sh);
-                    if (rc != SQLITE_DONE)
-                    {
-                        cout << "error writing row " << rc << endl;
-                        return false;
-                    }
-                    rc = sqlite3_reset(preparer.insert_p2sh);
-                    if (rc != SQLITE_OK)
-                    {
-                        cout << "error resetting prepared statement" << rc << endl;
-                        return false;
-                    }
-                }
-            }
-                break;
-            default:
+            switch (script.type())
             {
-                if (preparer.debug)
+                case bc::payment_type::pubkey:
+                case bc::payment_type::pubkey_hash:
                 {
-                    string transactionString = bc::encode_base16(slice);
-                    cout << "recording strange transaction " << transactionString << endl;
-                }
+                    if (preparer.debug)
+                    {
+                        string transactionString = bc::encode_base16(slice);
+                        cout << "recording p2pkh transaction " << transactionString << endl;
+                    }
 
-                // treat all non-standard transactions as P2SH
-                bc::short_hash hash = bc::bitcoin_short_hash(slice);
-                string keyString = bc::encode_base16(hash);
-                rc = sqlite3_bind_text(preparer.insert_p2sh, 1, keyString.c_str(), -1, NULL);
-                if (rc != SQLITE_OK)
-                {
-                    cout << "error binding address hash " << rc << endl;
-                    return false;
+                    insert = preparer.insert_p2pkh;
+                    bc::payment_address paymentAddress;
+                    if (bc::extract(paymentAddress, script))
+                    {
+                        stringstream ss;
+                        vector<uint8_t> short_hash = vector<uint8_t>(20);
+                        copy(paymentAddress.hash().begin(), paymentAddress.hash().end(), short_hash.begin());
+                        prettyPrintVector(short_hash, ss);
+                        keyString = ss.str();
+                    } else {
+                        cout << "could not get a payment address from script" << endl;
+                        return false;
+                    }
                 }
-                rc = sqlite3_bind_int64(preparer.insert_p2sh, 2, amount);
-                if (rc != SQLITE_OK)
+                    break;
+                case bc::payment_type::script_hash:
                 {
-                    cout << "error binding amount" << rc << endl;
-                    return false;
+                    if (preparer.debug)
+                    {
+                        string transactionString = bc::encode_base16(slice);
+                        cout << "recording p2sh transaction " << transactionString << endl;
+                    }
+
+                    insert = preparer.insert_p2sh;
+                    bc::payment_address paymentAddress;
+                    if (bc::extract(paymentAddress, script))
+                    {
+                        keyString = bc::encode_base16(paymentAddress.hash());
+                    } else {
+                        cout << "could not get a payment address from script" << endl;
+                        return false;
+                    }
                 }
-                rc = sqlite3_step(preparer.insert_p2sh);
-                if (rc != SQLITE_DONE)
+                    break;
+                default:
                 {
-                    cout << "error writing row " << rc << endl;
-                    return false;
+                    if (preparer.debug)
+                    {
+                        string transactionString = bc::encode_base16(slice);
+                        cout << "recording strange transaction " << transactionString << endl;
+                    }
+
+                    // treat all non-standard transactions as P2SH
+                    insert = preparer.insert_p2sh;
+                    bc::short_hash hash = bc::bitcoin_short_hash(slice);
+                    keyString = bc::encode_base16(hash);
                 }
-                rc = sqlite3_reset(preparer.insert_p2sh);
-                if (rc != SQLITE_OK)
-                {
-                    cout << "error resetting prepared statement" << rc << endl;
-                    return false;
-                }
+                    break;
             }
-                break;
+
+            rc = sqlite3_bind_text(insert, 1, keyString.c_str(), -1, NULL);
+            if (rc != SQLITE_OK)
+            {
+                cout << "error binding address hash " << rc << endl;
+                return false;
+            }
+            rc = sqlite3_bind_int64(insert, 2, amount);
+            if (rc != SQLITE_OK)
+            {
+                cout << "error binding amount" << rc << endl;
+                return false;
+            }
+            rc = sqlite3_step(insert);
+            if (rc != SQLITE_DONE)
+            {
+                cout << "error writing row " << rc << endl;
+                return false;
+            }
+            rc = sqlite3_reset(insert);
+            if (rc != SQLITE_OK)
+            {
+                cout << "error resetting prepared statement" << rc << endl;
+                return false;
+            }
+
+            // finish a transaction if we've reached the statement limit
+            preparer.transaction_count++;
+            if (preparer.transaction_count == TRANSACTION_SIZE)
+            {
+                string commit = "COMMIT;";
+                rc = sqlite3_exec(preparer.db, commit.c_str(), callback, 0, &zErrMsg);
+                if( rc!=SQLITE_OK ){
+                    fprintf(stderr, "SQL error: %s\n", zErrMsg);
+                    sqlite3_free(zErrMsg);
+                }
+                preparer.transaction_count = 0;
+            }
+
+            return true;
+
+        } catch (bc::end_of_stream) {
+            cout << "could not parse transaction script" << endl;
+            return false;
         }
-
-        // finish a transaction if we've reached the statement limit
-        preparer.transaction_count++;
-        if (preparer.transaction_count == TRANSACTION_SIZE)
-        {
-            string commit = "COMMIT;";
-            rc = sqlite3_exec(preparer.db, commit.c_str(), callback, 0, &zErrMsg);
-            if( rc!=SQLITE_OK ){
-                fprintf(stderr, "SQL error: %s\n", zErrMsg);
-                sqlite3_free(zErrMsg);
-            }
-            preparer.transaction_count = 0;
-        }
-
-        return true;
     }
 
     bool writeJustSqlite(snapshot_preparer& preparer)

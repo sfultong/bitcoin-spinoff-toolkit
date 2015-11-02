@@ -334,6 +334,118 @@ namespace bst {
         return true;
     }
 
+    bool writeSnapshotFromSqlite(const uint256_t& blockhash)
+    {
+        sqlite3 *db;
+        sqlite3_stmt *get_all_p2pkh;
+        sqlite3_stmt *get_all_p2sh;
+        char *zErrMsg = 0;
+        int rc;
+
+        rc = sqlite3_open(DB_NAME.c_str(), &db);
+        if( rc ){
+            fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+            sqlite3_close(db);
+            return false;
+        }
+
+        sqlite3_prepare_v2(db, GET_ALL_P2PKH.c_str(), -1, &get_all_p2pkh, NULL);
+        sqlite3_prepare_v2(db, GET_ALL_P2SH.c_str(), -1, &get_all_p2sh, NULL);
+
+        // get total number of p2pkh transactions
+        snapshot_header header = snapshot_header();
+        copy(blockhash.begin(), blockhash.end(), header.block_hash.begin());
+        sqlite3_stmt* stmt;
+        string get_total_p2pkh = "select count(distinct pkh) from p2pkh;";
+        rc = sqlite3_prepare_v2(db, get_total_p2pkh.c_str(), -1, &stmt, NULL);
+        rc = sqlite3_step(stmt);
+        header.nP2PKH = sqlite3_column_int64(stmt, 0);
+        rc = sqlite3_finalize(stmt);
+
+        // get total number of p2sh transactions
+        string get_total_p2sh = "select count(distinct sh) from p2sh;";
+        rc = sqlite3_prepare_v2(db, get_total_p2sh.c_str(), -1, &stmt, NULL);
+        rc = sqlite3_step(stmt);
+        header.nP2SH = sqlite3_column_int64(stmt, 0);
+        rc = sqlite3_finalize(stmt);
+
+        // write snapshot header
+        ofstream snapshot;
+        snapshot.open(SNAPSHOT_NAME, ios::binary);
+        snapshot.write(reinterpret_cast<const char*>(&header.version), sizeof(header.version));
+        copy(header.block_hash.begin(), header.block_hash.end(), ostream_iterator<uint8_t>(snapshot));
+        snapshot.write(reinterpret_cast<const char*>(&header.nP2PKH), sizeof(header.nP2PKH));
+        snapshot.write(reinterpret_cast<const char*>(&header.nP2SH), sizeof(header.nP2SH));
+
+        // write all p2pkh to snapshot
+        rc = sqlite3_prepare_v2(db, GET_ALL_P2PKH.c_str(), -1, &stmt, NULL);
+        if( rc!=SQLITE_OK ){
+            cout << "Could not prepare statement for getting all p2pkh" << endl;
+        }
+
+        while (SQLITE_ROW == (rc = sqlite3_step(stmt))) {
+
+            const unsigned char* keyCString = sqlite3_column_text(stmt, 0);
+            stringstream ss;
+            ss << keyCString;
+            vector<uint8_t> hashVec;
+            if ( ! decodeVector(ss.str(), hashVec))
+            {
+                cout << "error decoding " << ss.str() << endl;
+                return 0;
+            }
+            copy(hashVec.begin(), hashVec.end(), ostream_iterator<uint8_t>(snapshot));
+
+            uint64_t amount = sqlite3_column_int64(stmt, 1);
+            snapshot.write(reinterpret_cast<const char*>(&amount), sizeof(amount));
+        }
+
+        if (SQLITE_DONE != rc)
+        {
+            cout << "could not get all p2pkh rows: " << rc << endl;
+        }
+        rc = sqlite3_finalize(stmt);
+
+        // write all p2sh to snapshot
+        rc = sqlite3_prepare_v2(db, GET_ALL_P2SH.c_str(), -1, &stmt, NULL);
+        if( rc!=SQLITE_OK ){
+            cout << "Could not prepare statement for getting all p2sh" << endl;
+        }
+
+        while (SQLITE_ROW == (rc = sqlite3_step(stmt))) {
+
+            const unsigned char* keyCString = sqlite3_column_text(stmt, 0);
+            stringstream ss;
+            ss << keyCString;
+            bc::data_chunk chunk;
+
+            if ( ! bc::decode_base16(chunk, ss.str()))
+            {
+                cout << "error decoding " << ss.str() << endl;
+                return 0;
+            }
+            copy(chunk.begin(), chunk.end(), ostream_iterator<uint8_t>(snapshot));
+
+            uint64_t amount = sqlite3_column_int64(stmt, 1);
+            snapshot.write(reinterpret_cast<const char*>(&amount), sizeof(amount));
+        }
+
+        if (SQLITE_DONE != rc)
+        {
+            cout << "could not get all p2sh rows: " << rc << endl;
+        }
+        rc = sqlite3_finalize(stmt);
+
+        sqlite3_close(db);
+
+        //remove(DB_NAME.c_str());
+
+        snapshot.flush();
+        snapshot.close();
+
+        return true;
+    }
+
     bool writeSnapshot(snapshot_preparer& preparer, const vector<uint8_t>& blockhash)
     {
         char *zErrMsg = 0;

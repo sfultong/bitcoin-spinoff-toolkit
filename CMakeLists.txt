@@ -34,7 +34,12 @@ set(TEST_SOURCE_FILES
         ${HEADER_FILES}
         src/util/main.cpp
 )
+
 add_executable(spinoff_test ${TEST_SOURCE_FILES})
 target_link_libraries(spinoff_test bitcoin spinoff_toolkit ${Boost_LIBRARIES})
 
+# write snapshot file from existing sqlite
+set(WRITE_SNAPSHOT_SOURCE_FILES ${HEADER_FILES} src/util/writeSnapshotFromSql.cpp)
 
+add_executable(write_snapshot ${WRITE_SNAPSHOT_SOURCE_FILES})
+target_link_libraries(write_snapshot bitcoin spinoff_toolkit ${Boost_LIBRARIES})

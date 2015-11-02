@@ -40,6 +40,7 @@ namespace bst {
     // also cleans up
     bool writeSnapshot(snapshot_preparer& preparer, const uint256_t& blockhash);
     bool writeJustSqlite(snapshot_preparer& preparer);
+    bool writeSnapshotFromSqlite(const uint256_t& blockhash);
 
 }
 

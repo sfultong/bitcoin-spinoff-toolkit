@@ -26,10 +26,15 @@ namespace bst {
     bool openSnapshot(snapshot_reader& reader)
     {
         reader.snapshot.open(SNAPSHOT_NAME, ios::binary);
+        if (! reader.snapshot.is_open())
+        {
+            return false;
+        }
         reader.snapshot.read(reinterpret_cast<char*>(&reader.header.version), sizeof(reader.header.version));
         reader.snapshot.read(reinterpret_cast<char*>(&reader.header.block_hash[0]), 32);
         reader.snapshot.read(reinterpret_cast<char*>(&reader.header.nP2PKH), sizeof(reader.header.nP2PKH));
         reader.snapshot.read(reinterpret_cast<char*>(&reader.header.nP2SH), sizeof(reader.header.nP2SH));
+        return true;
     }
 
     void printSnapshot()
@@ -64,11 +69,10 @@ namespace bst {
         }
 
         reader.snapshot.close();
-        remove(SNAPSHOT_NAME.c_str());
     }
 
     // assumes the vectors are the same length
-    int compare (vector<uint8_t>& one, vector<uint8_t>& two)
+    int compare (const vector<uint8_t>& one, const vector<uint8_t>& two)
     {
         for (long int i = 0; i < one.size(); i++)
         {
@@ -78,25 +82,18 @@ namespace bst {
         return 0;
     }
 
-    uint64_t getP2PKHAmount(snapshot_reader &reader, const string &claim, const bc::message_signature &signature) {
-
-        // first, get p2pkh value for claim
-        vector <uint8_t> claimVector = vector<uint8_t>(20);
-        if (!recover_address(claim, signature, claimVector)) {
-            return 0;
-        }
-
-        uint64_t low = 0;
-        uint64_t high = reader.header.nP2PKH;
+    uint64_t getBalance(snapshot_reader &reader, const vector<uint8_t>& address, int64_t high, uint64_t base_offset)
+    {
+        int64_t low = 0;
         while (low <= high) {
-            uint64_t mid = (low + high) / 2;
-            uint64_t offset = HEADER_SIZE + mid * 28;
+            int64_t mid = (low + high) / 2;
+            uint64_t offset = base_offset + mid * 28;
             reader.snapshot.seekg(offset);
 
             vector <uint8_t> hashVec(20);
             reader.snapshot.read(reinterpret_cast<char *>(&hashVec[0]), 20);
 
-            int comparison = compare(claimVector, hashVec);
+            int comparison = compare(address, hashVec);
             if (comparison == 0) {
                 uint64_t amount;
                 reader.snapshot.read(reinterpret_cast<char *>(&amount), sizeof(amount));
@@ -109,6 +106,28 @@ namespace bst {
             }
         }
         return 0;
+    }
+
+    uint64_t getP2PKHBalance(snapshot_reader& reader, const vector<uint8_t>& vector)
+    {
+        return getBalance(reader, vector, reader.header.nP2PKH, HEADER_SIZE);
+    }
+
+    uint64_t getP2SHBalance(snapshot_reader& reader, const vector<uint8_t>& vector)
+    {
+        uint64_t base_offset = HEADER_SIZE + reader.header.nP2PKH * 28;
+        return getBalance(reader, vector, reader.header.nP2SH, base_offset);
+    }
+
+    uint64_t getP2PKHAmount(snapshot_reader &reader, const string &claim, const bc::message_signature &signature) {
+
+        // first, get p2pkh value for claim
+        vector <uint8_t> claimVector = vector<uint8_t>(20);
+        if (!recover_address(claim, signature, claimVector)) {
+            return 0;
+        }
+
+        return getBalance(reader, claimVector, reader.header.nP2PKH, HEADER_SIZE);
     }
 
     uint64_t getP2PKHAmount(snapshot_reader &reader, const string &claim, const string &signature) {
@@ -153,28 +172,8 @@ namespace bst {
 
         // if transaction validates against output script, find amount in snapshot
         if (output_script.run(input_script, transaction_type, input_index)) {
-            uint64_t low = 0;
-            uint64_t high = reader.header.nP2SH;
-            while (low <= high) {
-                uint64_t mid = (low + high) / 2;
-                uint64_t offset = HEADER_SIZE + reader.header.nP2PKH * 28 + mid * 28;
-                reader.snapshot.seekg(offset);
-
-                vector <uint8_t> hashVec(20);
-                reader.snapshot.read(reinterpret_cast<char *>(&hashVec[0]), 20);
-
-                int comparison = compare(claimVector, hashVec);
-                if (comparison == 0) {
-                    uint64_t amount;
-                    reader.snapshot.read(reinterpret_cast<char *>(&amount), sizeof(amount));
-                    return amount;
-                }
-                if (comparison < 0) {
-                    high = mid - 1;
-                } else {
-                    low = mid + 1;
-                }
-            }
+            uint64_t base_offset = HEADER_SIZE + reader.header.nP2PKH * 28;
+            return getBalance(reader, claimVector, reader.header.nP2SH, base_offset);
         }
         return 0;
     }

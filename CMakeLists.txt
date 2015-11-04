@@ -43,3 +43,10 @@ set(WRITE_SNAPSHOT_SOURCE_FILES ${HEADER_FILES} src/util/writeSnapshotFromSql.cp
 
 add_executable(write_snapshot ${WRITE_SNAPSHOT_SOURCE_FILES})
 target_link_libraries(write_snapshot bitcoin spinoff_toolkit ${Boost_LIBRARIES})
+
+add_executable(get_balance ${HEADER_FILES} src/util/getBalance.cpp)
+target_link_libraries(get_balance bitcoin spinoff_toolkit ${Boost_LIBRARIES})
+
+add_executable(print_snapshot ${HEADER_FILES} src/util/printSnapshot.cpp)
+target_link_libraries(print_snapshot bitcoin spinoff_toolkit ${Boost_LIBRARIES})
+

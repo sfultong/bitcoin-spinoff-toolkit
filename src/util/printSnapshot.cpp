@@ -14,17 +14,11 @@
  * limitations under the License.
  */
 
-#include <iostream>
 #include <bitcoin/bitcoin.hpp>
-#include "bitcoin/bst/generate.h"
+#include "bitcoin/bst/claim.h"
 
 using namespace std;
 
-int main() {
-
-    vector<uint8_t> block_hash = vector<uint8_t>(32);
-    bst::writeSnapshotFromSqlite(block_hash);
-
-    return 0;
-
+int main(int argv, char** argc) {
+    bst::printSnapshot();
 }

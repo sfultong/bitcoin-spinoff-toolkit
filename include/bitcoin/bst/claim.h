@@ -36,6 +36,8 @@ namespace bst {
     uint64_t getP2PKHAmount(snapshot_reader& reader, const string& claim, const uint256_t& signature);
     uint64_t getP2PKHAmount(snapshot_reader& reader, const string& claim, const string& signature);
     uint64_t getP2SHAmount(snapshot_reader& reader, const string& transaction, const string& address, const uint32_t input_index);
+    uint64_t getP2PKHBalance(snapshot_reader& reader, const vector<uint8_t>& vector);
+    uint64_t getP2SHBalance(snapshot_reader& reader, const vector<uint8_t>& vector);
 }
 
 #endif

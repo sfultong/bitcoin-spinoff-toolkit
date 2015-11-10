@@ -22,6 +22,7 @@ set(HEADER_FILES
 )
 set(SOURCE_FILES
         ${HEADER_FILES}
+        src/common.cpp
         src/generate.cpp
         src/claim.cpp
         src/sqlite3.c

@@ -290,12 +290,115 @@ void test_validate_multisig()
     cout << "result " << result << endl;
 }
 
+// not a test, just making a pretty base58 dummy address
+void make_dummy_address()
+{
+    //              1AsyXxD2CLwZtQEm7SuKcfEVpHuQVDQ174
+    string dummy = "1BitcoinSnapshotDummyAddress111111";
+    bc::data_chunk chunk = bc::decode_base58(dummy);
+    bc::short_hash sh = bc::short_hash();
+    copy(chunk.begin() + 1, chunk.begin() + 22, sh.begin());
+    bc::payment_address address(0, sh);
+    string recoveredAddress = address.encoded();
+    string hexString = bc::encode_base16(sh);
+    cout << recoveredAddress << endl;
+
+    cout << hexString << endl;
+}
+
+void test_claim_bitfield()
+{
+    bst::snapshot_preparer preparer;
+    preparer.debug = false;
+    bst::prepareForUTXOs(preparer);
+    string pk1 = "1345FBB2B00E115C98C1D6E975C99B5431DE9CDE";
+    string pk2 = "2345FBB2B00E115C98C1D6E975C99B5431DE9CDE";
+    string pk3 = "3345FBB2B00E115C98C1D6E975C99B5431DE9CDE";
+    string pk4 = "4345FBB2B00E115C98C1D6E975C99B5431DE9CDE";
+    string pk5 = "5345FBB2B00E115C98C1D6E975C99B5431DE9CDE";
+    string pk6 = "6345FBB2B00E115C98C1D6E975C99B5431DE9CDE";
+    string pk7 = "7345FBB2B00E115C98C1D6E975C99B5431DE9CDE";
+    string pk8 = "8345FBB2B00E115C98C1D6E975C99B5431DE9CDE";
+    string pk9 = "9345FBB2B00E115C98C1D6E975C99B5431DE9CDE";
+    string pks[9] = { pk1, pk2, pk3, pk4, pk5, pk6, pk7, pk8, pk9 };
+    for (int i = 0; i < 9; i++) {
+        string transaction = "76A914" + pks[i] + "88AC";
+        vector<uint8_t> vector;
+        bst::decodeVector(transaction, vector);
+        bst::writeUTXO(preparer, vector, (uint64_t) i * 100);
+    }
+    string pk10 = "69a16fbc4929fc7c83ada40641411c09fe4b76d8";
+    string pk11 = "79a16fbc4929fc7c83ada40641411c09fe4b76d8";
+    string pkss[2] = { pk10, pk11 };
+    for (int i = 0; i < 2; i++) {
+        string transaction = "a914" + pkss[i] + "87";
+        vector<uint8_t> vector;
+        bst::decodeVector(transaction, vector);
+        bst::writeUTXO(preparer, vector, (uint64_t) 10000 * i);
+    }
+    vector<uint8_t> block_hash = vector<uint8_t>(32);
+    bst::writeJustSqlite(preparer);
+    bst::writeSnapshotFromSqlite(block_hash);
+
+
+    bst::snapshot_reader reader;
+    bst::openSnapshot(reader);
+
+    for (int i = 0; i < 9; i++) {
+        vector<uint8_t> vector;
+        bst::decodeVector(pks[i], vector);
+        if (getP2PKHClaimed(reader, vector)) {
+            cout << "after taking snapshot, claim " << i << " is set" << endl;
+        }
+    }
+    for (int i = 0; i < 2; i++) {
+        vector<uint8_t> vector;
+        bst::decodeVector(pkss[i], vector);
+        if (bst::getP2SHClaimed(reader, vector)) {
+            cout << "after taking snapshot, claim 1" << i << " is set" << endl;
+        }
+        if (! setP2SHClaimed(reader, vector)) {
+            cout << "error setting p2sh claim" << endl;
+        }
+        if (! getP2SHClaimed(reader, vector)) {
+            cout << "after setting, claim 10 is not set" << endl;
+        }
+    }
+
+    vector<uint8_t> vector, vector2;
+    for (int i = 0; i < 9; i++) {
+        vector.clear();
+        bst::decodeVector(pks[i], vector);
+        if (! bst::setP2PKHClaimed(reader, vector)) {
+            cout << "error setting p2pkh claim " << i << endl;
+        }
+        for (int j = 0; j < 9; j++) {
+            vector2.clear();
+            bst::decodeVector(pks[j], vector2);
+            if (j == i) {
+                if (! bst::getP2PKHClaimed(reader, vector2)) {
+                   cout << "after setting, claim " << j << " is not set" << endl;
+                }
+            } else {
+                if (bst::getP2PKHClaimed(reader, vector2)) {
+                    cout << "after setting " << i << " claim " << j << " is set" << endl;
+                }
+            }
+        }
+        bst::resetClaims(reader.header);
+    }
+
+    // cleanup
+    remove("temp.sqlite");
+}
+
 void test_all()
 {
     test_signing_check();
     test_recover_signature();
     test_store_and_claim();
     test_write_sql_and_snapshot_separately();
+    test_claim_bitfield();
 }
 
 int main() {

@@ -38,6 +38,12 @@ namespace bst {
     uint64_t getP2SHAmount(snapshot_reader& reader, const string& transaction, const string& address, const uint32_t input_index);
     uint64_t getP2PKHBalance(snapshot_reader& reader, const vector<uint8_t>& vector);
     uint64_t getP2SHBalance(snapshot_reader& reader, const vector<uint8_t>& vector);
+    bool hasP2PKH(snapshot_reader& reader, const vector<uint8_t>& vector);
+    bool hasP2SH(snapshot_reader& reader, const vector<uint8_t>& vector);
+    bool setP2PKHClaimed(snapshot_reader& reader, const vector<uint8_t>& vector);
+    bool setP2SHClaimed(snapshot_reader& reader, const vector<uint8_t>& vector);
+    bool getP2PKHClaimed(snapshot_reader& reader, const vector<uint8_t>& vector);
+    bool getP2SHClaimed(snapshot_reader& reader, const vector<uint8_t>& vector);
 }
 
 #endif

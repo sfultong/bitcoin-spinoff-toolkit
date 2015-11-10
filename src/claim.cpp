@@ -82,6 +82,106 @@ namespace bst {
         return 0;
     }
 
+    int64_t getIndex(snapshot_reader &reader, const vector<uint8_t>& address, int64_t high, uint64_t base_offset)
+    {
+        int64_t low = 0;
+        while (low <= high) {
+            int64_t mid = (low + high) / 2;
+            uint64_t offset = base_offset + mid * 28;
+            reader.snapshot.seekg(offset);
+
+            vector<uint8_t> hashVec(20);
+            reader.snapshot.read(reinterpret_cast<char *>(&hashVec[0]), 20);
+
+            int comparison = compare(address, hashVec);
+            if (comparison == 0) {
+                return mid;
+            }
+            if (comparison < 0) {
+                high = mid - 1;
+            } else {
+                low = mid + 1;
+            }
+        }
+
+        // not found
+        return -1;
+    }
+
+    bool hasP2PKH(snapshot_reader& reader, const vector<uint8_t>& vector)
+    {
+        return -1 != getIndex(reader, vector, reader.header.nP2PKH, HEADER_SIZE);
+
+    }
+
+    bool hasP2SH(snapshot_reader& reader, const vector<uint8_t>& vector)
+    {
+        uint64_t base_offset = HEADER_SIZE + reader.header.nP2PKH * 28;
+        return -1 != getIndex(reader, vector, reader.header.nP2SH, base_offset);
+    }
+
+    bool setP2PKHClaimed(snapshot_reader& reader, const vector<uint8_t>& vector)
+    {
+        int64_t claimIndex = getIndex(reader, vector, reader.header.nP2PKH, HEADER_SIZE);
+        if (claimIndex == -1) return false;
+        fstream claimedFile(SNAPSHOT_CLAIMED_NAME, ios::in | ios::out | ios::binary);
+        claimedFile.seekg(claimIndex / 8, ios::beg);
+        char byte;
+        int bitSet = 1 << (claimIndex % 8);
+        claimedFile.read(&byte, 1);
+        byte |= bitSet;
+
+        claimedFile.seekg(claimIndex / 8, ios::beg);
+        claimedFile.write(&byte, 1);
+        claimedFile.close();
+        return true;
+    }
+
+    bool setP2SHClaimed(snapshot_reader& reader, const vector<uint8_t>& vector)
+    {
+        uint64_t base_offset = HEADER_SIZE + reader.header.nP2PKH * 28;
+        int64_t claimIndex = getIndex(reader, vector, reader.header.nP2SH, base_offset);
+        if (claimIndex == -1) return false;
+        fstream claimedFile(SNAPSHOT_CLAIMED_NAME, ios::in | ios::out | ios::binary);
+        int64_t bitOffset = reader.header.nP2PKH + claimIndex;
+        claimedFile.seekg(bitOffset / 8, ios::beg);
+        char byte;
+        int bitSet = 1 << (bitOffset % 8);
+        claimedFile.read(&byte, 1);
+        byte |= bitSet;
+
+        claimedFile.seekg((reader.header.nP2PKH + claimIndex) / 8, ios::beg);
+        claimedFile.write(&byte, 1);
+        claimedFile.close();
+        return true;
+    }
+
+    bool getP2PKHClaimed(snapshot_reader& reader, const vector<uint8_t>& vector)
+    {
+        int64_t claimIndex = getIndex(reader, vector, reader.header.nP2PKH, HEADER_SIZE);
+        ifstream claimedFile(SNAPSHOT_CLAIMED_NAME, ios::binary);
+        claimedFile.seekg(claimIndex / 8, ios::beg);
+        char byte;
+        int bitSet = 1 << (claimIndex % 8);
+        claimedFile.read(&byte, 1);
+        claimedFile.close();
+        return (byte & bitSet) != 0;
+    }
+
+    bool getP2SHClaimed(snapshot_reader& reader, const vector<uint8_t>& vector)
+    {
+        uint64_t base_offset = HEADER_SIZE + reader.header.nP2PKH * 28;
+        int64_t claimIndex = getIndex(reader, vector, reader.header.nP2SH, base_offset);
+        ifstream claimedFile(SNAPSHOT_CLAIMED_NAME, ios::binary);
+        int64_t bitOffset = reader.header.nP2PKH + claimIndex;
+        claimedFile.seekg(bitOffset / 8, ios::beg);
+        char byte;
+        int bitSet = 1 << (bitOffset % 8);
+        claimedFile.read(&byte, 1);
+        claimedFile.close();
+        return (byte & bitSet) != 0;
+    }
+
     uint64_t getBalance(snapshot_reader &reader, const vector<uint8_t>& address, int64_t high, uint64_t base_offset)
     {
         int64_t low = 0;
@@ -126,6 +226,14 @@ namespace bst {
         if (!recover_address(claim, signature, claimVector)) {
             return 0;
         }
+
+        // debug
+        /*
+        bc::short_hash sh;
+        copy(claimVector.begin(), claimVector.end(), sh.begin());
+        bc::payment_address address(111, sh);
+        cout << "recovered address " << address.encoded() << endl;
+         */
 
         return getBalance(reader, claimVector, reader.header.nP2PKH, HEADER_SIZE);
     }

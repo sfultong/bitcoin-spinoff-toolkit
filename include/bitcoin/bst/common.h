@@ -16,10 +16,16 @@
 #ifndef SPINOFF_TOOLKIT_COMMON_H
 #define SPINOFF_TOOLKIT_COMMON_H
 
+#include <cstddef>
+#include <cstdint>
+#include <vector>
+#include <string>
+
 using namespace std;
 
 namespace bst {
     static const string SNAPSHOT_NAME = "snapshot";
+    static const string SNAPSHOT_CLAIMED_NAME = "snapshot.claimed";
 
     // std::array seems a problem, not sure why. Find out and switch these
     typedef std::vector<uint8_t> uint160_t;
@@ -39,6 +45,8 @@ namespace bst {
         snapshot_header() : version(0), block_hash(32), nP2PKH(0), nP2SH(0) { }
     };
     static const int HEADER_SIZE = 4 + 32 + 8 + 8;
+
+    void resetClaims(snapshot_header& header);
 }
 
 #endif

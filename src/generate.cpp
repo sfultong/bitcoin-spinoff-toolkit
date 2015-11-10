@@ -443,6 +443,9 @@ namespace bst {
         snapshot.flush();
         snapshot.close();
 
+        // write claim bitfield file
+        resetClaims(header);
+
         return true;
     }
 

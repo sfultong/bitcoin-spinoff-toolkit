@@ -23,7 +23,7 @@ using namespace std;
 int main() {
 
     vector<uint8_t> block_hash = vector<uint8_t>(32);
-    bst::writeSnapshotFromSqlite(block_hash);
+    bst::writeSnapshotFromSqlite(block_hash, 0);
 
     return 0;
 

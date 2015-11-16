@@ -27,6 +27,27 @@ namespace bst {
     static const string INVALID_ADDRESS = "Invalid Address";
     static const string DB_NAME = "temp.sqlite";
     static const int TRANSACTION_SIZE = 1000;
+    static const string CREATE_P2PKH_TABLE = "create table p2pkh ("
+            "id integer primary key,"
+            "pkh char(20),"
+            "amount integer"
+            ");";
+    static const string CREATE_P2SH_TABLE = "create table p2sh ("
+            "id integer primary key,"
+            "sh char(20),"
+            "amount integer"
+            ");";
+
+    static const string CREATE_P2PKH_INDEX = "create index p2pkh_pkh on p2pkh (pkh);";
+    static const string CREATE_P2SH_INDEX = "create index p2sh_sh on p2sh (sh);";
+    static const string INSERT_P2PKH = "insert into p2pkh (pkh, amount) values (?, ?)";
+    static const string INSERT_P2SH = "insert into p2sh (sh, amount) values (?, ?)";
+    static const string GET_ALL_P2PKH = "select pkh, total from"
+            " (select pkh, sum(amount) as total from p2pkh group by pkh order by pkh)"
+            "where total >= ?";
+    static const string GET_ALL_P2SH = "select sh, total from"
+            " (select sh, sum(amount) as total from p2sh group by sh order by sh)"
+            "where total >= ?";
 
     string getVerificationMessage(string address, string message, string signature)
     {
@@ -62,23 +83,6 @@ namespace bst {
         return 0;
     }
 
-    static const string CREATE_P2PKH_TABLE = "create table p2pkh ("
-                "id integer primary key,"
-                "pkh char(20),"
-                "amount integer"
-                ");";
-    static const string CREATE_P2SH_TABLE = "create table p2sh ("
-            "id integer primary key,"
-            "sh char(20),"
-            "amount integer"
-            ");";
-
-    static const string CREATE_P2PKH_INDEX = "create index p2pkh_pkh on p2pkh (pkh);";
-    static const string CREATE_P2SH_INDEX = "create index p2sh_sh on p2sh (sh);";
-    static const string INSERT_P2PKH = "insert into p2pkh (pkh, amount) values (?, ?)";
-    static const string INSERT_P2SH = "insert into p2sh (sh, amount) values (?, ?)";
-    static const string GET_ALL_P2PKH = "select pkh, sum(amount) from p2pkh group by pkh order by pkh";
-    static const string GET_ALL_P2SH = "select sh, sum(amount) from p2sh group by sh order by sh";
     bool prepareForUTXOs(snapshot_preparer& preparer)
     {
         preparer.transaction_count = 0;
@@ -334,11 +338,9 @@ namespace bst {
         return true;
     }
 
-    bool writeSnapshotFromSqlite(const uint256_t& blockhash)
+    bool writeSnapshotFromSqlite(const uint256_t& blockhash, const uint64_t dustLimit)
     {
         sqlite3 *db;
-        sqlite3_stmt *get_all_p2pkh;
-        sqlite3_stmt *get_all_p2sh;
         char *zErrMsg = 0;
         int rc;
 
@@ -349,38 +351,23 @@ namespace bst {
             return false;
         }
 
-        sqlite3_prepare_v2(db, GET_ALL_P2PKH.c_str(), -1, &get_all_p2pkh, NULL);
-        sqlite3_prepare_v2(db, GET_ALL_P2SH.c_str(), -1, &get_all_p2sh, NULL);
-
-        // get total number of p2pkh transactions
         snapshot_header header = snapshot_header();
-        copy(blockhash.begin(), blockhash.end(), header.block_hash.begin());
-        sqlite3_stmt* stmt;
-        string get_total_p2pkh = "select count(distinct pkh) from p2pkh;";
-        rc = sqlite3_prepare_v2(db, get_total_p2pkh.c_str(), -1, &stmt, NULL);
-        rc = sqlite3_step(stmt);
-        header.nP2PKH = sqlite3_column_int64(stmt, 0);
-        rc = sqlite3_finalize(stmt);
-
-        // get total number of p2sh transactions
-        string get_total_p2sh = "select count(distinct sh) from p2sh;";
-        rc = sqlite3_prepare_v2(db, get_total_p2sh.c_str(), -1, &stmt, NULL);
-        rc = sqlite3_step(stmt);
-        header.nP2SH = sqlite3_column_int64(stmt, 0);
-        rc = sqlite3_finalize(stmt);
-
-        // write snapshot header
         ofstream snapshot;
         snapshot.open(SNAPSHOT_NAME, ios::binary);
-        snapshot.write(reinterpret_cast<const char*>(&header.version), sizeof(header.version));
-        copy(header.block_hash.begin(), header.block_hash.end(), ostream_iterator<uint8_t>(snapshot));
-        snapshot.write(reinterpret_cast<const char*>(&header.nP2PKH), sizeof(header.nP2PKH));
-        snapshot.write(reinterpret_cast<const char*>(&header.nP2SH), sizeof(header.nP2SH));
 
         // write all p2pkh to snapshot
+        sqlite3_stmt* stmt;
+        snapshot.seekp(HEADER_SIZE);
         rc = sqlite3_prepare_v2(db, GET_ALL_P2PKH.c_str(), -1, &stmt, NULL);
         if( rc!=SQLITE_OK ){
-            cout << "Could not prepare statement for getting all p2pkh" << endl;
+            cout << "Could not prepare statement for getting all p2pkh " << rc << endl;
+        }
+
+        rc = sqlite3_bind_int64(stmt, 1, dustLimit);
+        if (rc != SQLITE_OK)
+        {
+            cout << "error binding dust limit" << rc << endl;
+            return false;
         }
 
         while (SQLITE_ROW == (rc = sqlite3_step(stmt))) {
@@ -398,6 +385,7 @@ namespace bst {
 
             uint64_t amount = sqlite3_column_int64(stmt, 1);
             snapshot.write(reinterpret_cast<const char*>(&amount), sizeof(amount));
+            header.nP2PKH++;
         }
 
         if (SQLITE_DONE != rc)
@@ -412,6 +400,13 @@ namespace bst {
             cout << "Could not prepare statement for getting all p2sh" << endl;
         }
 
+        rc = sqlite3_bind_int64(stmt, 1, dustLimit);
+        if (rc != SQLITE_OK)
+        {
+            cout << "error binding dust limit" << rc << endl;
+            return false;
+        }
+
         while (SQLITE_ROW == (rc = sqlite3_step(stmt))) {
 
             const unsigned char* keyCString = sqlite3_column_text(stmt, 0);
@@ -428,6 +423,7 @@ namespace bst {
 
             uint64_t amount = sqlite3_column_int64(stmt, 1);
             snapshot.write(reinterpret_cast<const char*>(&amount), sizeof(amount));
+            header.nP2SH++;
         }
 
         if (SQLITE_DONE != rc)
@@ -438,7 +434,12 @@ namespace bst {
 
         sqlite3_close(db);
 
-        //remove(DB_NAME.c_str());
+        // write snapshot header
+        snapshot.seekp(0);
+        snapshot.write(reinterpret_cast<const char*>(&header.version), sizeof(header.version));
+        copy(header.block_hash.begin(), header.block_hash.end(), ostream_iterator<uint8_t>(snapshot));
+        snapshot.write(reinterpret_cast<const char*>(&header.nP2PKH), sizeof(header.nP2PKH));
+        snapshot.write(reinterpret_cast<const char*>(&header.nP2SH), sizeof(header.nP2SH));
 
         snapshot.flush();
         snapshot.close();
@@ -449,116 +450,15 @@ namespace bst {
         return true;
     }
 
-    bool writeSnapshot(snapshot_preparer& preparer, const vector<uint8_t>& blockhash)
+    bool writeSnapshot(snapshot_preparer& preparer, const vector<uint8_t>& blockhash, const uint64_t dustLimit)
     {
-        char *zErrMsg = 0;
-        int rc;
-
-        // commit the last transaction, if there is one
-        if (preparer.transaction_count != 0)
-        {
-            string commit = "COMMIT;";
-            rc = sqlite3_exec(preparer.db, commit.c_str(), callback, 0, &zErrMsg);
-            if( rc!=SQLITE_OK ){
-                fprintf(stderr, "SQL error: %s\n", zErrMsg);
-                sqlite3_free(zErrMsg);
-            }
-            preparer.transaction_count = 0;
+        bool result = writeJustSqlite(preparer)
+            && writeSnapshotFromSqlite(blockhash, dustLimit);
+        // on success, clean up
+        if (result) {
+            remove(DB_NAME.c_str());
         }
-
-        // get total number of p2pkh transactions
-        snapshot_header header = snapshot_header();
-        copy(blockhash.begin(), blockhash.end(), header.block_hash.begin());
-        sqlite3_stmt* stmt;
-        string get_total_p2pkh = "select count(distinct pkh) from p2pkh;";
-        rc = sqlite3_prepare_v2(preparer.db, get_total_p2pkh.c_str(), -1, &stmt, NULL);
-        rc = sqlite3_step(stmt);
-        header.nP2PKH = sqlite3_column_int64(stmt, 0);
-        rc = sqlite3_finalize(stmt);
-
-        // get total number of p2sh transactions
-        string get_total_p2sh = "select count(distinct sh) from p2sh;";
-        rc = sqlite3_prepare_v2(preparer.db, get_total_p2sh.c_str(), -1, &stmt, NULL);
-        rc = sqlite3_step(stmt);
-        header.nP2SH = sqlite3_column_int64(stmt, 0);
-        rc = sqlite3_finalize(stmt);
-
-        // write snapshot header
-        ofstream snapshot;
-        snapshot.open(SNAPSHOT_NAME, ios::binary);
-        snapshot.write(reinterpret_cast<const char*>(&header.version), sizeof(header.version));
-        copy(header.block_hash.begin(), header.block_hash.end(), ostream_iterator<uint8_t>(snapshot));
-        snapshot.write(reinterpret_cast<const char*>(&header.nP2PKH), sizeof(header.nP2PKH));
-        snapshot.write(reinterpret_cast<const char*>(&header.nP2SH), sizeof(header.nP2SH));
-
-        // write all p2pkh to snapshot
-        rc = sqlite3_prepare_v2(preparer.db, GET_ALL_P2PKH.c_str(), -1, &stmt, NULL);
-        if( rc!=SQLITE_OK ){
-            cout << "Could not prepare statement for getting all p2pkh" << endl;
-        }
-
-        while (SQLITE_ROW == (rc = sqlite3_step(stmt))) {
-
-            const unsigned char* keyCString = sqlite3_column_text(stmt, 0);
-            stringstream ss;
-            ss << keyCString;
-            vector<uint8_t> hashVec;
-            if ( ! decodeVector(ss.str(), hashVec))
-            {
-                cout << "error decoding " << ss.str() << endl;
-                return 0;
-            }
-            copy(hashVec.begin(), hashVec.end(), ostream_iterator<uint8_t>(snapshot));
-
-            uint64_t amount = sqlite3_column_int64(stmt, 1);
-            snapshot.write(reinterpret_cast<const char*>(&amount), sizeof(amount));
-        }
-
-        if (SQLITE_DONE != rc)
-        {
-            cout << "could not get all p2pkh rows: " << rc << endl;
-        }
-        rc = sqlite3_finalize(stmt);
-
-        // write all p2sh to snapshot
-        rc = sqlite3_prepare_v2(preparer.db, GET_ALL_P2SH.c_str(), -1, &stmt, NULL);
-        if( rc!=SQLITE_OK ){
-            cout << "Could not prepare statement for getting all p2sh" << endl;
-        }
-
-        while (SQLITE_ROW == (rc = sqlite3_step(stmt))) {
-
-            const unsigned char* keyCString = sqlite3_column_text(stmt, 0);
-            stringstream ss;
-            ss << keyCString;
-            bc::data_chunk chunk;
-
-            if ( ! bc::decode_base16(chunk, ss.str()))
-            {
-                cout << "error decoding " << ss.str() << endl;
-                return 0;
-            }
-            copy(chunk.begin(), chunk.end(), ostream_iterator<uint8_t>(snapshot));
-
-            uint64_t amount = sqlite3_column_int64(stmt, 1);
-            snapshot.write(reinterpret_cast<const char*>(&amount), sizeof(amount));
-        }
-
-        if (SQLITE_DONE != rc)
-        {
-            cout << "could not get all p2sh rows: " << rc << endl;
-        }
-        rc = sqlite3_finalize(stmt);
-
-        sqlite3_close(preparer.db);
-
-        remove(DB_NAME.c_str());
-
-        snapshot.flush();
-        snapshot.close();
-
-        return true;
+        return result;
     }
-
 }
 

@@ -38,9 +38,9 @@ namespace bst {
     bool prepareForUTXOs(snapshot_preparer& preparer);
     bool writeUTXO(snapshot_preparer& preparer, const uint160_t& pubkeyscript, const uint64_t amount);
     // also cleans up
-    bool writeSnapshot(snapshot_preparer& preparer, const uint256_t& blockhash);
+    bool writeSnapshot(snapshot_preparer& preparer, const uint256_t& blockhash, const uint64_t dustLimit);
     bool writeJustSqlite(snapshot_preparer& preparer);
-    bool writeSnapshotFromSqlite(const uint256_t& blockhash);
+    bool writeSnapshotFromSqlite(const uint256_t& blockhash, const uint64_t dustLimit);
 
 }
 

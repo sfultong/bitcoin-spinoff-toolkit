@@ -88,7 +88,7 @@ void test_store_p2pkhs()
     bst::writeUTXO(preparer, vector1, 24900000000);
     bst::writeUTXO(preparer, vector2, 99998237);
     vector<uint8_t> block_hash = vector<uint8_t>(32);
-    bst::writeSnapshot(preparer, block_hash);
+    bst::writeSnapshot(preparer, block_hash, 0);
     bst::printSnapshot();
 }
 
@@ -106,7 +106,7 @@ void test_store_p2pkhs_and_p2sh()
     bst::writeUTXO(preparer, vector1, 10);
     bst::writeUTXO(preparer, vector2, 20);
     vector<uint8_t> block_hash = vector<uint8_t>(32);
-    bst::writeSnapshot(preparer, block_hash);
+    bst::writeSnapshot(preparer, block_hash, 0);
     bst::printSnapshot();
 }
 
@@ -132,7 +132,7 @@ void test_store_and_claim()
     bst::writeUTXO(preparer, vector3, 5000000643);
     bst::writeUTXO(preparer, vector4, 123456);
     vector<uint8_t> block_hash = vector<uint8_t>(32);
-    bst::writeSnapshot(preparer, block_hash);
+    bst::writeSnapshot(preparer, block_hash, 0);
     string claim = "I claim funds.";
     string signature = "Hxc0sSkslD2mFE3HtHzIDRqSutQBiAQ+TxrsgVPeL3jWbXtcusuD77MTX7Tc/hJsQtVrbZsf9xpSDs+6Khx7nNk=";
     string signature2 = "H3ys4y9vnG2cvneZMo33Vvv1kQTKr2iCcBZZe78OFl8VaPbXYNwLVTtTh5K7Qu4MpdOQiVo+6SHq6pPSzdBm7PQ=";
@@ -207,7 +207,7 @@ void test_write_sql_and_snapshot_separately()
     bst::writeUTXO(preparer, vector4, 123456);
     vector<uint8_t> block_hash = vector<uint8_t>(32);
     bst::writeJustSqlite(preparer);
-    bst::writeSnapshotFromSqlite(block_hash);
+    bst::writeSnapshotFromSqlite(block_hash, 0);
     string claim = "I claim funds.";
     string signature = "Hxc0sSkslD2mFE3HtHzIDRqSutQBiAQ+TxrsgVPeL3jWbXtcusuD77MTX7Tc/hJsQtVrbZsf9xpSDs+6Khx7nNk=";
     string signature2 = "H3ys4y9vnG2cvneZMo33Vvv1kQTKr2iCcBZZe78OFl8VaPbXYNwLVTtTh5K7Qu4MpdOQiVo+6SHq6pPSzdBm7PQ=";
@@ -260,6 +260,46 @@ void test_write_sql_and_snapshot_separately()
 
     // cleanup
     remove("temp.sqlite");
+}
+
+void test_dust_pruning()
+{
+    string transaction1 = "76A9142345FBB2B00E115C98C1D6E975C99B5431DE9CDE88AC";
+    string transaction2 = "76A914992FA68A35E9706F5CE12036803DF00FF3003DC688AC";
+    vector<uint8_t> vector1;
+    vector<uint8_t> vector2;
+    bst::decodeVector(transaction1, vector1);
+    bst::decodeVector(transaction2, vector2);
+    bst::snapshot_preparer preparer;
+    preparer.debug = false;
+    bst::prepareForUTXOs(preparer);
+    bst::writeUTXO(preparer, vector1, 50000);
+    bst::writeUTXO(preparer, vector1, 80000);
+    bst::writeUTXO(preparer, vector2, 60000);
+    vector<uint8_t> block_hash = vector<uint8_t>(32);
+    bst::writeSnapshot(preparer, block_hash, 100000);
+    string claim = "I claim funds.";
+    string signature = "Hxc0sSkslD2mFE3HtHzIDRqSutQBiAQ+TxrsgVPeL3jWbXtcusuD77MTX7Tc/hJsQtVrbZsf9xpSDs+6Khx7nNk=";
+    string signature2 = "H3ys4y9vnG2cvneZMo33Vvv1kQTKr2iCcBZZe78OFl8VaPbXYNwLVTtTh5K7Qu4MpdOQiVo+6SHq6pPSzdBm7PQ=";
+
+    bst::snapshot_reader reader;
+    bst::openSnapshot(reader);
+    uint64_t expected = 130000;
+    uint64_t amount = bst::getP2PKHAmount(reader, claim, signature);
+    if (amount != expected)
+    {
+        cout << "test_dust_pruning--- 1" << endl;
+        cout << "expected: " << expected << endl;
+        cout << "result  : " << amount << endl;
+    }
+    expected = 0;
+    amount = bst::getP2PKHAmount(reader, claim, signature2);
+    if (amount != expected)
+    {
+        cout << "test_dust_pruning--- 2" << endl;
+        cout << "expected: " << expected << endl;
+        cout << "result  : " << amount << endl;
+    }
 }
 
 // only tests libbitcoin code, ignore
@@ -338,7 +378,7 @@ void test_claim_bitfield()
     }
     vector<uint8_t> block_hash = vector<uint8_t>(32);
     bst::writeJustSqlite(preparer);
-    bst::writeSnapshotFromSqlite(block_hash);
+    bst::writeSnapshotFromSqlite(block_hash, 0);
 
 
     bst::snapshot_reader reader;
@@ -399,13 +439,52 @@ void test_all()
     test_store_and_claim();
     test_write_sql_and_snapshot_separately();
     test_claim_bitfield();
+    test_dust_pruning();
+}
+
+void temp_make_address()
+{
+    // disagree amounts
+    /*
+    string adr1 = "3B4DF4363CAA9E3BD9DA58020D3080BE8230A4AE";
+    string adr2 = "40FA4C9FF96DF3FA85B605A75FE9233589F6D0A3";
+    string adr3 = "62E907B15CBF27D5425399EBF6F0FB50EBB88F18";
+    string adr4 = "946DA2BD625B8EA667A8069EA21E45051ABF9DE3";
+    string adr5 = "ACD6BBBABA2EF8C2C3A8203222DECBCFE1488D32";
+     */
+
+    // bill missed
+    /*
+    string adr1 = "00322511BD4404BD1EE1A740B88C805F47742C20";
+    string adr2 = "0037720AF78B49D338C69D12530C4ADF9E901959";
+    string adr3 = "00F6BB0BEA9ADDB8E047C2B1F4D89D73E9D6DE05";
+    string adr4 = "01307839686B19A5B640EFE6BCAF387F37F0810F";
+    string adr5 = "013D7DA172F349867EF4745B9CA73142E35EBBEA";
+     */
+    string adr1 = "596cc609a9ce1c533a2a224904d2862433f6431a";
+    string adr2 = "3534c25a8d3396f3e62a98b6f13f7827db8a026e";
+    string adr3 = "b1397ddfcfd4a4c41b0837ffdbcb44d97d15f37e";
+    string adr4 = "3b620a56fd3fea79d0f98a49f2c74dd17d65b9bf";
+    string adr5 = "5d6f494ed517995b36b9aab9c3e51648b9096388";
+    //this doesn't exist
+    //string adr6 = "3574A40C27E1B8679E6841B15E235BC942835469";
+    string adr6 = "00322511BD4404BD1EE1A740B88C805F47742C20";
+    string adrs[6] = { adr1, adr2, adr3, adr4, adr5, adr6 };
+
+    for (int i = 0; i < 6; i++) {
+        bc::data_chunk chunk;
+        bc::decode_base16(chunk, adrs[i]);
+        bc::short_hash shortHash;
+        copy(chunk.begin(), chunk.end(), shortHash.begin());
+        bc::payment_address payment_address(5, shortHash);
+        cout << payment_address.encoded() << endl;
+    }
+
 }
 
 int main() {
-    //test_validate_multisig();
-    //test_store_p2pkhs_and_p2sh();
-    //test_store_and_claim();
     test_all();
+    //temp_make_address();
 
     return 0;
 }

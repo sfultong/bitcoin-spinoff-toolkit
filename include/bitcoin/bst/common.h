@@ -17,7 +17,6 @@
 #define SPINOFF_TOOLKIT_COMMON_H
 
 #include <cstddef>
-#include <cstdint>
 #include <vector>
 #include <string>
 

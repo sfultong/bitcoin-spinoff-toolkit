@@ -138,10 +138,13 @@ void test_store_and_claim()
     string signature2 = "H3ys4y9vnG2cvneZMo33Vvv1kQTKr2iCcBZZe78OFl8VaPbXYNwLVTtTh5K7Qu4MpdOQiVo+6SHq6pPSzdBm7PQ=";
     string signature3 = "IIuXyLFeU+HVJnv9TPAGXnCnc0bCOi+enwjIWxsO5FmaMdVNBcRrkYGB07Qbdkghd+0XhnaUL3O+X+h4dzb0Kio=";
 
+    ifstream stream;
     bst::snapshot_reader reader;
-    bst::openSnapshot(reader);
+    bst::openSnapshot(stream, reader);
+    bst::SnapshotEntryCollection p2pkhEntries = bst::getP2PKHCollection(reader);
+    bst::SnapshotEntryCollection p2shEntries = bst::getP2SHCollection(reader);
     uint64_t expected = 24900000000;
-    uint64_t amount = bst::getP2PKHAmount(reader, claim, signature);
+    uint64_t amount = bst::getP2PKHAmount(p2pkhEntries, claim, signature);
     if (amount != expected)
     {
         cout << "test_store_and_claim--- 1" << endl;
@@ -149,7 +152,7 @@ void test_store_and_claim()
         cout << "result  : " << amount << endl;
     }
     expected = 99998237;
-    amount = bst::getP2PKHAmount(reader, claim, signature2);
+    amount = bst::getP2PKHAmount(p2pkhEntries, claim, signature2);
     if (amount != expected)
     {
         cout << "test_store_and_claim--- 2" << endl;
@@ -157,7 +160,7 @@ void test_store_and_claim()
         cout << "result  : " << amount << endl;
     }
     expected = 5000000643;
-    amount = bst::getP2PKHAmount(reader, claim, signature3);
+    amount = bst::getP2PKHAmount(p2pkhEntries, claim, signature3);
     if (amount != expected)
     {
         cout << "test_store_and_claim--- 3" << endl;
@@ -175,7 +178,7 @@ void test_store_and_claim()
             "76a914f2f5bbdea2763591bb5c7552df7d6fe46204bc7588ac00000000";
     string p2sh_address = "2N5nwxNF6Fe91RPExcwcaqPPpV14CSo9cEc";
     expected = 123456;
-    amount = bst::getP2SHAmount(reader, transaction_string, p2sh_address, 0);
+    amount = bst::getP2SHAmount(p2shEntries, transaction_string, p2sh_address, 0);
     if (amount != expected)
     {
         cout << "test_store_and_claim--- 4" << endl;
@@ -213,10 +216,14 @@ void test_write_sql_and_snapshot_separately()
     string signature2 = "H3ys4y9vnG2cvneZMo33Vvv1kQTKr2iCcBZZe78OFl8VaPbXYNwLVTtTh5K7Qu4MpdOQiVo+6SHq6pPSzdBm7PQ=";
     string signature3 = "IIuXyLFeU+HVJnv9TPAGXnCnc0bCOi+enwjIWxsO5FmaMdVNBcRrkYGB07Qbdkghd+0XhnaUL3O+X+h4dzb0Kio=";
 
+    ifstream stream;
     bst::snapshot_reader reader;
-    bst::openSnapshot(reader);
+    bst::openSnapshot(stream, reader);
+    bst::SnapshotEntryCollection p2pkhEntries = bst::getP2PKHCollection(reader);
+    bst::SnapshotEntryCollection p2shEntries = bst::getP2SHCollection(reader);
+
     uint64_t expected = 24900000000;
-    uint64_t amount = bst::getP2PKHAmount(reader, claim, signature);
+    uint64_t amount = bst::getP2PKHAmount(p2pkhEntries, claim, signature);
     if (amount != expected)
     {
         cout << "test_write_sql_and_snapshot_separately--- 1" << endl;
@@ -224,7 +231,7 @@ void test_write_sql_and_snapshot_separately()
         cout << "result  : " << amount << endl;
     }
     expected = 99998237;
-    amount = bst::getP2PKHAmount(reader, claim, signature2);
+    amount = bst::getP2PKHAmount(p2pkhEntries, claim, signature2);
     if (amount != expected)
     {
         cout << "test_write_sql_and_snapshot_separately--- 2" << endl;
@@ -232,7 +239,7 @@ void test_write_sql_and_snapshot_separately()
         cout << "result  : " << amount << endl;
     }
     expected = 5000000643;
-    amount = bst::getP2PKHAmount(reader, claim, signature3);
+    amount = bst::getP2PKHAmount(p2pkhEntries, claim, signature3);
     if (amount != expected)
     {
         cout << "test_write_sql_and_snapshot_separately--- 3" << endl;
@@ -250,7 +257,7 @@ void test_write_sql_and_snapshot_separately()
             "76a914f2f5bbdea2763591bb5c7552df7d6fe46204bc7588ac00000000";
     string p2sh_address = "2N5nwxNF6Fe91RPExcwcaqPPpV14CSo9cEc";
     expected = 123456;
-    amount = bst::getP2SHAmount(reader, transaction_string, p2sh_address, 0);
+    amount = bst::getP2SHAmount(p2shEntries, transaction_string, p2sh_address, 0);
     if (amount != expected)
     {
         cout << "test_write_sql_and_snapshot_separately--- 4" << endl;
@@ -282,10 +289,12 @@ void test_dust_pruning()
     string signature = "Hxc0sSkslD2mFE3HtHzIDRqSutQBiAQ+TxrsgVPeL3jWbXtcusuD77MTX7Tc/hJsQtVrbZsf9xpSDs+6Khx7nNk=";
     string signature2 = "H3ys4y9vnG2cvneZMo33Vvv1kQTKr2iCcBZZe78OFl8VaPbXYNwLVTtTh5K7Qu4MpdOQiVo+6SHq6pPSzdBm7PQ=";
 
+    ifstream stream;
     bst::snapshot_reader reader;
-    bst::openSnapshot(reader);
+    bst::openSnapshot(stream, reader);
+    bst::SnapshotEntryCollection p2pkhEntries = bst::getP2PKHCollection(reader);
     uint64_t expected = 130000;
-    uint64_t amount = bst::getP2PKHAmount(reader, claim, signature);
+    uint64_t amount = bst::getP2PKHAmount(p2pkhEntries, claim, signature);
     if (amount != expected)
     {
         cout << "test_dust_pruning--- 1" << endl;
@@ -293,7 +302,7 @@ void test_dust_pruning()
         cout << "result  : " << amount << endl;
     }
     expected = 0;
-    amount = bst::getP2PKHAmount(reader, claim, signature2);
+    amount = bst::getP2PKHAmount(p2pkhEntries, claim, signature2);
     if (amount != expected)
     {
         cout << "test_dust_pruning--- 2" << endl;
@@ -381,27 +390,42 @@ void test_claim_bitfield()
     bst::writeSnapshotFromSqlite(block_hash, 0);
 
 
+    ifstream stream;
     bst::snapshot_reader reader;
-    bst::openSnapshot(reader);
+    bst::openSnapshot(stream, reader);
+    bst::SnapshotEntryCollection p2pkhEntries = bst::getP2PKHCollection(reader);
+    bst::SnapshotEntryCollection p2shEntries = bst::getP2SHCollection(reader);
+    bst::snapshot_entry entry;
 
     for (int i = 0; i < 9; i++) {
         vector<uint8_t> vector;
         bst::decodeVector(pks[i], vector);
-        if (getP2PKHClaimed(reader, vector)) {
-            cout << "after taking snapshot, claim " << i << " is set" << endl;
+        if ( p2pkhEntries.getEntry(vector, entry)) {
+            if (entry.claimed) {
+                cout << "after taking snapshot, claim " << i << " is set" << endl;
+            }
+        } else {
+            cout << "after taking snapshot, entry " << i << " is not found" << endl;
         }
     }
     for (int i = 0; i < 2; i++) {
         vector<uint8_t> vector;
         bst::decodeVector(pkss[i], vector);
-        if (bst::getP2SHClaimed(reader, vector)) {
-            cout << "after taking snapshot, claim 1" << i << " is set" << endl;
+        if (p2shEntries.getEntry(vector, entry)) {
+            if (entry.claimed) {
+                cout << "after taking snapshot, p2sh claim " << i << " is set" << endl;
+            }
+        } else {
+            cout << "after taking snapshot, p2sh entry " << i << " is not found" << endl;
         }
-        if (! setP2SHClaimed(reader, vector)) {
-            cout << "error setting p2sh claim" << endl;
-        }
-        if (! getP2SHClaimed(reader, vector)) {
-            cout << "after setting, claim 10 is not set" << endl;
+
+        p2shEntries.setClaimed(entry.index);
+        if (p2shEntries.getEntry(vector, entry)) {
+            if (! entry.claimed) {
+                cout << "after setting claimed, p2sh claim " << i << " is not set" << endl;
+            }
+        } else {
+            cout << "after setting claimed, p2sh entry " << i << " is not found" << endl;
         }
     }
 
@@ -409,21 +433,30 @@ void test_claim_bitfield()
     for (int i = 0; i < 9; i++) {
         vector.clear();
         bst::decodeVector(pks[i], vector);
-        if (! bst::setP2PKHClaimed(reader, vector)) {
-            cout << "error setting p2pkh claim " << i << endl;
+        if (p2pkhEntries.getEntry(vector, entry)) {
+            p2pkhEntries.setClaimed(entry.index);
+        } else {
+            cout << "could not find entry " << i << "when attempting to set claimed" << endl;
         }
+
         for (int j = 0; j < 9; j++) {
             vector2.clear();
             bst::decodeVector(pks[j], vector2);
-            if (j == i) {
-                if (! bst::getP2PKHClaimed(reader, vector2)) {
-                   cout << "after setting, claim " << j << " is not set" << endl;
+            if (p2pkhEntries.getEntry(vector2, entry)) {
+                if (j == i) {
+                    if (! entry.claimed) {
+                        cout << "after setting, claim " << j << " is not set" << endl;
+                    }
+                } else {
+                    if (entry.claimed) {
+                        cout << "after setting " << i << " claim " << j << " is set" << endl;
+                    }
                 }
+
             } else {
-                if (bst::getP2PKHClaimed(reader, vector2)) {
-                    cout << "after setting " << i << " claim " << j << " is set" << endl;
-                }
+                cout << "could not find entry " << i << "when attempting to get j claimed" << endl;
             }
+
         }
         bst::resetClaims(reader.header);
     }

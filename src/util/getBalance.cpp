@@ -20,8 +20,11 @@
 using namespace std;
 
 int main(int argv, char** argc) {
+    ifstream stream;
     bst::snapshot_reader snapshot_reader;
-    if (! bst::openSnapshot(snapshot_reader)) {
+    bst::SnapshotEntryCollection p2pkhEntries = bst::getP2PKHCollection(snapshot_reader);
+    bst::SnapshotEntryCollection p2shEntries = bst::getP2SHCollection(snapshot_reader);
+    if (! bst::openSnapshot(stream, snapshot_reader)) {
         cout << "Could not open snapshot." << endl;
         return -1;
     }
@@ -40,20 +43,19 @@ int main(int argv, char** argc) {
     }
     vector<uint8_t> addressVec = vector<uint8_t>(payment_address.hash().begin(), payment_address.hash().end());
 
-    uint64_t amount = bst::getP2PKHBalance(snapshot_reader, addressVec);
-    if (amount != 0)
-    {
-        cout << "found p2pkh amount " << amount << endl;
+    bst::snapshot_entry entry;
+    if (p2pkhEntries.getEntry(addressVec, entry)) {
+        cout << "found p2pkh amount " << entry.amount << endl;
         return 0;
+
     }
 
-    amount = bst::getP2SHBalance(snapshot_reader, addressVec);
-    if (amount != 0)
-    {
-        cout << "found p2sh amount " << amount << endl;
+    if (p2shEntries.getEntry(addressVec, entry)) {
+        cout << "found p2sh amount " << entry.amount << endl;
         return 0;
+
     }
 
     cout << "could not find address in snapshot" << endl;
-   return 0;
+    return 0;
 }

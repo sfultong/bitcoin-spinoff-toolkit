@@ -30,6 +30,15 @@ namespace bst {
     typedef std::vector<uint8_t> uint160_t;
     typedef std::vector<uint8_t> uint256_t;
 
+    struct snapshot_entry {
+        uint160_t hash;
+        uint64_t amount;
+        int64_t index;
+        bool claimed;
+
+        snapshot_entry() : hash(20) {};
+    };
+
     /*
     Version            01 00 00 00                                                 4 bytes (uint32)
     Blockhash          hash of Bitcoin block that snapshot was taken from          32 bytes
@@ -42,6 +51,12 @@ namespace bst {
         uint64_t nP2SH;
 
         snapshot_header() : version(0), block_hash(32), nP2PKH(0), nP2SH(0) { }
+        snapshot_header(const snapshot_header& other) {
+            version = other.version;
+            block_hash = other.block_hash;
+            nP2PKH = other.nP2PKH;
+            nP2SH = other.nP2SH;
+        }
     };
     static const int HEADER_SIZE = 4 + 32 + 8 + 8;
 

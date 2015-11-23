@@ -25,25 +25,44 @@ namespace bst {
 
     struct snapshot_reader
     {
-        ifstream snapshot;
+        ifstream* snapshot;
         snapshot_header header;
+
+        snapshot_reader() {}
+        snapshot_reader(const snapshot_reader& other) {
+            snapshot = other.snapshot;
+            header = other.header;
+        }
     };
 
-    bool openSnapshot(snapshot_reader& reader);
+    class SnapshotEntryCollection {
+    public:
+        SnapshotEntryCollection(const snapshot_reader& _reader, int64_t _amount, uint64_t _offset, uint64_t _claimed_offset) {
+            reader = _reader;
+            amount = _amount;
+            offset = _offset;
+            claimed_offset = _claimed_offset;
+        }
+        void getEntry(int64_t index, snapshot_entry& entry) const;
+        bool getEntry(const uint256_t& hash, snapshot_entry& entry);
+        bool getEntry(const string& claim, const string& signature, snapshot_entry& entry);
+        bool getEntry(const string& claim, const uint256_t signature, snapshot_entry& entry);
+        void setClaimed(int64_t index);
+        snapshot_reader reader;
+        int64_t amount;
+        uint64_t offset;
+        uint64_t claimed_offset;
+    };
+
+    bool openSnapshot(ifstream& stream, snapshot_reader& reader);
+
+    SnapshotEntryCollection getP2PKHCollection(const snapshot_reader& reader);
+    SnapshotEntryCollection getP2SHCollection(const snapshot_reader& reader);
 
     void printSnapshot();
 
-    uint64_t getP2PKHAmount(snapshot_reader& reader, const string& claim, const uint256_t& signature);
-    uint64_t getP2PKHAmount(snapshot_reader& reader, const string& claim, const string& signature);
-    uint64_t getP2SHAmount(snapshot_reader& reader, const string& transaction, const string& address, const uint32_t input_index);
-    uint64_t getP2PKHBalance(snapshot_reader& reader, const vector<uint8_t>& vector);
-    uint64_t getP2SHBalance(snapshot_reader& reader, const vector<uint8_t>& vector);
-    bool hasP2PKH(snapshot_reader& reader, const vector<uint8_t>& vector);
-    bool hasP2SH(snapshot_reader& reader, const vector<uint8_t>& vector);
-    bool setP2PKHClaimed(snapshot_reader& reader, const vector<uint8_t>& vector);
-    bool setP2SHClaimed(snapshot_reader& reader, const vector<uint8_t>& vector);
-    bool getP2PKHClaimed(snapshot_reader& reader, const vector<uint8_t>& vector);
-    bool getP2SHClaimed(snapshot_reader& reader, const vector<uint8_t>& vector);
+    uint64_t getP2PKHAmount(SnapshotEntryCollection& collection, const string& claim, const string& signature);
+    uint64_t getP2SHAmount(SnapshotEntryCollection& collection, const string& transaction, const string& address, const uint32_t input_index);
 }
 
 #endif

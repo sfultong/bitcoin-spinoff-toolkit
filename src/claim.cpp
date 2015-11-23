@@ -23,52 +23,54 @@ using namespace std;
 
 namespace bst {
 
-    bool openSnapshot(snapshot_reader& reader)
+    bool openSnapshot(ifstream& stream, snapshot_reader& reader)
     {
-        reader.snapshot.open(SNAPSHOT_NAME, ios::binary);
-        if (! reader.snapshot.is_open())
+        reader.snapshot = &stream;
+        stream.open(SNAPSHOT_NAME, ios::binary);
+        if (! stream.is_open())
         {
             return false;
         }
-        reader.snapshot.read(reinterpret_cast<char*>(&reader.header.version), sizeof(reader.header.version));
-        reader.snapshot.read(reinterpret_cast<char*>(&reader.header.block_hash[0]), 32);
-        reader.snapshot.read(reinterpret_cast<char*>(&reader.header.nP2PKH), sizeof(reader.header.nP2PKH));
-        reader.snapshot.read(reinterpret_cast<char*>(&reader.header.nP2SH), sizeof(reader.header.nP2SH));
+        stream.read(reinterpret_cast<char*>(&reader.header.version), sizeof(reader.header.version));
+        stream.read(reinterpret_cast<char*>(&reader.header.block_hash[0]), 32);
+        stream.read(reinterpret_cast<char*>(&reader.header.nP2PKH), sizeof(reader.header.nP2PKH));
+        stream.read(reinterpret_cast<char*>(&reader.header.nP2SH), sizeof(reader.header.nP2SH));
         return true;
     }
 
     void printSnapshot()
     {
+        ifstream stream;
         snapshot_reader reader;
-        openSnapshot(reader);
+        openSnapshot(stream, reader);
 
         cout << "p2pkh:" << endl;
         for (int i = 0; i < reader.header.nP2PKH; i++) {
             vector<uint8_t> hashVec(20);
-            reader.snapshot.read(reinterpret_cast<char*>(&hashVec[0]), 20);
+            reader.snapshot->read(reinterpret_cast<char*>(&hashVec[0]), 20);
             bc::short_hash sh;
             copy(hashVec.begin(), hashVec.end(), sh.begin());
             bc::payment_address address(111, sh);
 
             uint64_t amount;
-            reader.snapshot.read(reinterpret_cast<char*>(&amount), sizeof(amount));
+            reader.snapshot->read(reinterpret_cast<char*>(&amount), sizeof(amount));
             cout << address.encoded() << " " << amount << endl;
         }
 
         cout << "p2sh:" << endl;
         for (int i = 0; i < reader.header.nP2SH; i++) {
             vector<uint8_t> hashVec(20);
-            reader.snapshot.read(reinterpret_cast<char*>(&hashVec[0]), 20);
+            reader.snapshot->read(reinterpret_cast<char*>(&hashVec[0]), 20);
             bc::short_hash sh;
             copy(hashVec.begin(), hashVec.end(), sh.begin());
             bc::payment_address address(196, sh);
 
             uint64_t amount;
-            reader.snapshot.read(reinterpret_cast<char*>(&amount), sizeof(amount));
+            reader.snapshot->read(reinterpret_cast<char*>(&amount), sizeof(amount));
             cout << address.encoded() << " " << amount << endl;
         }
 
-        reader.snapshot.close();
+        reader.snapshot->close();
     }
 
     // assumes the vectors are the same length
@@ -88,10 +90,10 @@ namespace bst {
         while (low <= high) {
             int64_t mid = (low + high) / 2;
             uint64_t offset = base_offset + mid * 28;
-            reader.snapshot.seekg(offset);
+            reader.snapshot->seekg(offset);
 
             vector<uint8_t> hashVec(20);
-            reader.snapshot.read(reinterpret_cast<char *>(&hashVec[0]), 20);
+            reader.snapshot->read(reinterpret_cast<char *>(&hashVec[0]), 20);
 
             int comparison = compare(address, hashVec);
             if (comparison == 0) {
@@ -108,57 +110,9 @@ namespace bst {
         return -1;
     }
 
-    bool hasP2PKH(snapshot_reader& reader, const vector<uint8_t>& vector)
+    bool getClaimed(int64_t index, uint64_t offset)
     {
-        return -1 != getIndex(reader, vector, reader.header.nP2PKH, HEADER_SIZE);
-
-    }
-
-    bool hasP2SH(snapshot_reader& reader, const vector<uint8_t>& vector)
-    {
-        uint64_t base_offset = HEADER_SIZE + reader.header.nP2PKH * 28;
-        return -1 != getIndex(reader, vector, reader.header.nP2SH, base_offset);
-    }
-
-    bool setP2PKHClaimed(snapshot_reader& reader, const vector<uint8_t>& vector)
-    {
-        int64_t claimIndex = getIndex(reader, vector, reader.header.nP2PKH, HEADER_SIZE);
-        if (claimIndex == -1) return false;
-        fstream claimedFile(SNAPSHOT_CLAIMED_NAME, ios::in | ios::out | ios::binary);
-        claimedFile.seekg(claimIndex / 8, ios::beg);
-        char byte;
-        int bitSet = 1 << (claimIndex % 8);
-        claimedFile.read(&byte, 1);
-        byte |= bitSet;
-
-        claimedFile.seekg(claimIndex / 8, ios::beg);
-        claimedFile.write(&byte, 1);
-        claimedFile.close();
-        return true;
-    }
-
-    bool setP2SHClaimed(snapshot_reader& reader, const vector<uint8_t>& vector)
-    {
-        uint64_t base_offset = HEADER_SIZE + reader.header.nP2PKH * 28;
-        int64_t claimIndex = getIndex(reader, vector, reader.header.nP2SH, base_offset);
-        if (claimIndex == -1) return false;
-        fstream claimedFile(SNAPSHOT_CLAIMED_NAME, ios::in | ios::out | ios::binary);
-        int64_t bitOffset = reader.header.nP2PKH + claimIndex;
-        claimedFile.seekg(bitOffset / 8, ios::beg);
-        char byte;
-        int bitSet = 1 << (bitOffset % 8);
-        claimedFile.read(&byte, 1);
-        byte |= bitSet;
-
-        claimedFile.seekg((reader.header.nP2PKH + claimIndex) / 8, ios::beg);
-        claimedFile.write(&byte, 1);
-        claimedFile.close();
-        return true;
-    }
-
-    bool getP2PKHClaimed(snapshot_reader& reader, const vector<uint8_t>& vector)
-    {
-        int64_t claimIndex = getIndex(reader, vector, reader.header.nP2PKH, HEADER_SIZE);
+        uint64_t claimIndex = index + offset;
         ifstream claimedFile(SNAPSHOT_CLAIMED_NAME, ios::binary);
         claimedFile.seekg(claimIndex / 8, ios::beg);
         char byte;
@@ -168,96 +122,89 @@ namespace bst {
         return (byte & bitSet) != 0;
     }
 
-    bool getP2SHClaimed(snapshot_reader& reader, const vector<uint8_t>& vector)
+    void setClaimedWithOffset(int64_t index, uint64_t offset)
     {
-        uint64_t base_offset = HEADER_SIZE + reader.header.nP2PKH * 28;
-        int64_t claimIndex = getIndex(reader, vector, reader.header.nP2SH, base_offset);
-        ifstream claimedFile(SNAPSHOT_CLAIMED_NAME, ios::binary);
-        int64_t bitOffset = reader.header.nP2PKH + claimIndex;
+        fstream claimedFile(SNAPSHOT_CLAIMED_NAME, ios::in | ios::out | ios::binary);
+        int64_t bitOffset = index + offset;
         claimedFile.seekg(bitOffset / 8, ios::beg);
         char byte;
         int bitSet = 1 << (bitOffset % 8);
         claimedFile.read(&byte, 1);
+        byte |= bitSet;
+
+        claimedFile.seekg(bitOffset / 8, ios::beg);
+        claimedFile.write(&byte, 1);
         claimedFile.close();
-        return (byte & bitSet) != 0;
     }
 
-    uint64_t getBalance(snapshot_reader &reader, const vector<uint8_t>& address, int64_t high, uint64_t base_offset)
-    {
-        int64_t low = 0;
-        while (low <= high) {
-            int64_t mid = (low + high) / 2;
-            uint64_t offset = base_offset + mid * 28;
-            reader.snapshot.seekg(offset);
+    void SnapshotEntryCollection::getEntry(int64_t index, snapshot_entry& entry) const {
+        entry.index = index;
+        reader.snapshot->seekg(offset + index * 28);
+        reader.snapshot->read(reinterpret_cast<char*>(&entry.hash[0]), 20);
+        reader.snapshot->read(reinterpret_cast<char*>(&entry.amount), sizeof(amount));
+        entry.claimed = getClaimed(index, claimed_offset);
+    }
 
-            vector <uint8_t> hashVec(20);
-            reader.snapshot.read(reinterpret_cast<char *>(&hashVec[0]), 20);
+    bool SnapshotEntryCollection::getEntry(const uint256_t& hash, snapshot_entry& entry) {
+        int64_t index = getIndex(reader, hash, amount, offset);
+        if (index < 0) return false;
 
-            int comparison = compare(address, hashVec);
-            if (comparison == 0) {
-                uint64_t amount;
-                reader.snapshot.read(reinterpret_cast<char *>(&amount), sizeof(amount));
-                return amount;
-            }
-            if (comparison < 0) {
-                high = mid - 1;
-            } else {
-                low = mid + 1;
-            }
+        getEntry(index, entry);
+        return true;
+    }
+
+    bool getEntry (SnapshotEntryCollection& entries, const string &claim, const bc::message_signature &signature, snapshot_entry& entry) {
+
+        // first, get p2pkh value for claim
+        vector<uint8_t> claimVector = vector<uint8_t>(20);
+        if (!recover_address(claim, signature, claimVector)) {
+            false;
+        }
+
+        return entries.getEntry(claimVector, entry);
+    }
+
+    bool SnapshotEntryCollection::getEntry(const string& claim, const string& signature, snapshot_entry& entry) {
+        bc::message_signature decodedSignature = bc::message_signature();
+        bc::data_chunk chunk;
+        if (!bc::decode_base64(chunk, signature)) return false;
+        copy(chunk.begin(), chunk.end(), decodedSignature.begin());
+
+        return bst::getEntry(*this, claim, decodedSignature, entry);
+    }
+
+    bool SnapshotEntryCollection::getEntry(const string& claim, const uint256_t signature, snapshot_entry& entry) {
+        bc::message_signature message_signature = bc::message_signature();
+        copy(signature.begin(), signature.end(), message_signature.begin());
+
+        return bst::getEntry(*this, claim, message_signature, entry);
+    }
+
+    void SnapshotEntryCollection::setClaimed(int64_t index) {
+        setClaimedWithOffset(index, claimed_offset);
+    }
+
+    SnapshotEntryCollection getP2PKHCollection(const snapshot_reader& reader) {
+        SnapshotEntryCollection collection = SnapshotEntryCollection(reader, reader.header.nP2PKH, HEADER_SIZE, 0);
+        return collection;
+    }
+
+    SnapshotEntryCollection getP2SHCollection(const snapshot_reader& reader) {
+        uint64_t offset = HEADER_SIZE + reader.header.nP2PKH * 28;
+        SnapshotEntryCollection collection = SnapshotEntryCollection(reader, reader.header.nP2SH, offset, reader.header.nP2PKH);
+        return collection;
+    }
+
+    uint64_t getP2PKHAmount(SnapshotEntryCollection& collection, const string &claim, const string &signature) {
+
+        snapshot_entry entry;
+        if ( collection.getEntry(claim, signature, entry) ) {
+            return entry.amount;
         }
         return 0;
     }
 
-    uint64_t getP2PKHBalance(snapshot_reader& reader, const vector<uint8_t>& vector)
-    {
-        return getBalance(reader, vector, reader.header.nP2PKH, HEADER_SIZE);
-    }
-
-    uint64_t getP2SHBalance(snapshot_reader& reader, const vector<uint8_t>& vector)
-    {
-        uint64_t base_offset = HEADER_SIZE + reader.header.nP2PKH * 28;
-        return getBalance(reader, vector, reader.header.nP2SH, base_offset);
-    }
-
-    uint64_t getP2PKHAmount(snapshot_reader &reader, const string &claim, const bc::message_signature &signature) {
-
-        // first, get p2pkh value for claim
-        vector <uint8_t> claimVector = vector<uint8_t>(20);
-        if (!recover_address(claim, signature, claimVector)) {
-            return 0;
-        }
-
-        // debug
-        /*
-        bc::short_hash sh;
-        copy(claimVector.begin(), claimVector.end(), sh.begin());
-        bc::payment_address address(111, sh);
-        cout << "recovered address " << address.encoded() << endl;
-         */
-
-        return getBalance(reader, claimVector, reader.header.nP2PKH, HEADER_SIZE);
-    }
-
-    uint64_t getP2PKHAmount(snapshot_reader &reader, const string &claim, const string &signature) {
-        // convert signature string from base64
-        bc::message_signature decodedSignature = bc::message_signature();
-        bc::data_chunk chunk;
-        if (!bc::decode_base64(chunk, signature)) return 0;
-
-        // copy
-        copy(chunk.begin(), chunk.end(), decodedSignature.begin());
-
-        return getP2PKHAmount(reader, claim, decodedSignature);
-    }
-
-    uint64_t getP2PKHAmount(snapshot_reader &reader, const string &claim, const uint256_t &signature) {
-
-        bc::message_signature message_signature = bc::message_signature();
-        copy(signature.begin(), signature.end(), message_signature.begin());
-        return getP2PKHAmount(reader, claim, message_signature);
-    }
-
-    uint64_t getP2SHAmount(snapshot_reader &reader, const string &transaction, const string &address,
+    uint64_t getP2SHAmount(SnapshotEntryCollection& collection, const string &transaction, const string &address,
                            const uint32_t input_index) {
         bc::payment_address payment_address = bc::payment_address(address);
         vector <uint8_t> claimVector = vector<uint8_t>(payment_address.hash().begin(), payment_address.hash().end());
@@ -280,8 +227,10 @@ namespace bst {
 
         // if transaction validates against output script, find amount in snapshot
         if (output_script.run(input_script, transaction_type, input_index)) {
-            uint64_t base_offset = HEADER_SIZE + reader.header.nP2PKH * 28;
-            return getBalance(reader, claimVector, reader.header.nP2SH, base_offset);
+            snapshot_entry entry;
+            if ( collection.getEntry(claimVector, entry)) {
+                return entry.amount;
+            }
         }
         return 0;
     }

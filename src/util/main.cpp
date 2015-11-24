@@ -516,8 +516,10 @@ void temp_make_address()
 }
 
 int main() {
-    test_all();
+    //test_all();
     //temp_make_address();
+    test_store_p2pkhs();
+    test_store_p2pkhs_and_p2sh();
 
     return 0;
 }

@@ -45,29 +45,23 @@ namespace bst {
         openSnapshot(stream, reader);
 
         cout << "p2pkh:" << endl;
-        for (int i = 0; i < reader.header.nP2PKH; i++) {
-            vector<uint8_t> hashVec(20);
-            reader.snapshot->read(reinterpret_cast<char*>(&hashVec[0]), 20);
+        SnapshotEntryCollection p2pkhEntries = getP2PKHCollection(reader);
+        for (SnapshotEntryCollection::iterator i = p2pkhEntries.begin(); i != p2pkhEntries.end(); i++) {
+            snapshot_entry entry = *i;
             bc::short_hash sh;
-            copy(hashVec.begin(), hashVec.end(), sh.begin());
+            copy(entry.hash.begin(), entry.hash.end(), sh.begin());
             bc::payment_address address(111, sh);
-
-            uint64_t amount;
-            reader.snapshot->read(reinterpret_cast<char*>(&amount), sizeof(amount));
-            cout << address.encoded() << " " << amount << endl;
+            cout << address.encoded() << " " << entry.amount << endl;
         }
 
         cout << "p2sh:" << endl;
-        for (int i = 0; i < reader.header.nP2SH; i++) {
-            vector<uint8_t> hashVec(20);
-            reader.snapshot->read(reinterpret_cast<char*>(&hashVec[0]), 20);
+        SnapshotEntryCollection p2shEntries = getP2SHCollection(reader);
+        for (SnapshotEntryCollection::iterator i = p2shEntries.begin(); i != p2shEntries.end(); i++) {
+            snapshot_entry entry = *i;
             bc::short_hash sh;
-            copy(hashVec.begin(), hashVec.end(), sh.begin());
+            copy(entry.hash.begin(), entry.hash.end(), sh.begin());
             bc::payment_address address(196, sh);
-
-            uint64_t amount;
-            reader.snapshot->read(reinterpret_cast<char*>(&amount), sizeof(amount));
-            cout << address.encoded() << " " << amount << endl;
+            cout << address.encoded() << " " << entry.amount << endl;
         }
 
         reader.snapshot->close();

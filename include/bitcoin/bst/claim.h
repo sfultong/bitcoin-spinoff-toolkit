@@ -74,7 +74,8 @@ namespace bst {
             typedef snapshot_entry& reference;
             typedef snapshot_entry* pointer;
             typedef int64_t difference_type;
-            typedef input_iterator_tag iterator_category;
+            typedef random_access_iterator_tag iterator_category;
+            iterator() : collection(0), index(0) {} // broken, dunno why I should implement this
             iterator(const SnapshotEntryCollection* collection_) : index(0) { collection = collection_; }
             iterator(const SnapshotEntryCollection* collection_, int64_t index_) { collection = collection_; index = index_; }
             self_type operator++() { self_type i = *this; index++; return i; }
@@ -83,7 +84,7 @@ namespace bst {
             pointer operator->() { collection->getEntry(index, current_entry); return &current_entry; }
             bool operator==(const self_type& rhs) { return index == rhs.index; }
             bool operator!=(const self_type& rhs) { return index != rhs.index; }
-        private:
+        //protected:
             const SnapshotEntryCollection* collection;
             snapshot_entry current_entry;
             int64_t index;
@@ -93,12 +94,13 @@ namespace bst {
         public:
             typedef const_iterator self_type;
             typedef snapshot_entry value_type;
-            typedef snapshot_entry& reference;
-            typedef snapshot_entry* pointer;
+            typedef const snapshot_entry& reference;
+            typedef const snapshot_entry* pointer;
             typedef int64_t difference_type;
             typedef input_iterator_tag iterator_category;
             const_iterator(const SnapshotEntryCollection* collection_) : index(0) { collection = collection_; }
             const_iterator(const SnapshotEntryCollection* collection_, int64_t index_) { collection = collection_; index = index_; }
+            const_iterator(const iterator& other) {collection = other.collection; index = other.index; }
             self_type operator++() { self_type i = *this; index++; return i; }
             self_type operator++(int junk) { index++; return *this; }
             reference operator*() { collection->getEntry(index, current_entry); return current_entry; }

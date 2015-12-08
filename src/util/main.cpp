@@ -18,6 +18,8 @@
 #include "bitcoin/bst/generate.h"
 #include "bitcoin/bst/claim.h"
 #include "bitcoin/bst/misc.h"
+#include <boost/foreach.hpp>
+
 
 using namespace std;
 
@@ -89,7 +91,15 @@ void test_store_p2pkhs()
     bst::writeUTXO(preparer, vector2, 99998237);
     vector<uint8_t> block_hash = vector<uint8_t>(32);
     bst::writeSnapshot(preparer, block_hash, 0);
-    bst::printSnapshot();
+
+    //bst::printSnapshot();
+    ifstream stream;
+    bst::snapshot_reader reader;
+    bst::openSnapshot(stream, reader);
+    bst::SnapshotEntryCollection p2pkhEntries = bst::getP2PKHCollection(reader);
+    BOOST_FOREACH(bst::snapshot_entry &entry, p2pkhEntries) {
+                    cout << "neat, I can foreach " << entry.amount << endl;
+    }
 }
 
 void test_store_p2pkhs_and_p2sh()
@@ -515,11 +525,25 @@ void temp_make_address()
 
 }
 
+void test_boost_foreach() {
+
+}
+
+void translate_multisig_address() {
+    string testEncodedAddress = "3L8KnbwsKingGEjv4WZYmA8eLsAuoKLWu1";
+    bc::payment_address payment_address(testEncodedAddress);
+    payment_address.set(196, payment_address.hash());
+    cout << "address " << payment_address.encoded();
+}
+
 int main() {
     //test_all();
     //temp_make_address();
-    test_store_p2pkhs();
+    /*
     test_store_p2pkhs_and_p2sh();
+     */
+    translate_multisig_address();
+    //test_all();
 
     return 0;
 }

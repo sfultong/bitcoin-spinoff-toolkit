@@ -46,7 +46,7 @@ namespace bst {
 
         cout << "p2pkh:" << endl;
         SnapshotEntryCollection p2pkhEntries = getP2PKHCollection(reader);
-        for (SnapshotEntryCollection::iterator i = p2pkhEntries.begin(); i != p2pkhEntries.end(); i++) {
+        for (SnapshotEntryCollection::const_iterator i = p2pkhEntries.begin(); i != p2pkhEntries.end(); i++) {
             snapshot_entry entry = *i;
             bc::short_hash sh;
             copy(entry.hash.begin(), entry.hash.end(), sh.begin());
@@ -56,7 +56,7 @@ namespace bst {
 
         cout << "p2sh:" << endl;
         SnapshotEntryCollection p2shEntries = getP2SHCollection(reader);
-        for (SnapshotEntryCollection::iterator i = p2shEntries.begin(); i != p2shEntries.end(); i++) {
+        for (SnapshotEntryCollection::const_iterator i = p2shEntries.begin(); i != p2shEntries.end(); i++) {
             snapshot_entry entry = *i;
             bc::short_hash sh;
             copy(entry.hash.begin(), entry.hash.end(), sh.begin());

@@ -67,6 +67,19 @@ namespace bst {
         reader.snapshot->close();
     }
 
+    void printHeader()
+    {
+        ifstream stream;
+        snapshot_reader reader;
+        openSnapshot(stream, reader);
+
+        cout << "version " << reader.header.version << endl;
+        bc::data_chunk chunk = bc::data_chunk(reader.header.block_hash);
+        cout << "last block hash " << bc::encode_base16(chunk) << endl;
+        cout << "p2pkh " << reader.header.nP2PKH << endl;
+        cout << "p2sh " << reader.header.nP2SH << endl;
+    }
+
     // assumes the vectors are the same length
     int compare (const vector<uint8_t>& one, const vector<uint8_t>& two)
     {

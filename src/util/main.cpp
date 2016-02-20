@@ -23,6 +23,8 @@
 
 using namespace std;
 
+static const string SNAPSHOT_NAME = "snapshot";
+
 void test_signing_check()
 {
     string testEncodedAddress = "15BWWGJRtB8Z9NXmMAp94whujUK6SrmRwT";
@@ -94,6 +96,12 @@ void test_store_p2pkhs()
 
     //bst::printSnapshot();
     ifstream stream;
+    stream.open(SNAPSHOT_NAME, ios::binary);
+    if (! stream.is_open())
+    {
+        cout << "could not open snapshot" << endl;
+        exit(1);
+    }
     bst::snapshot_reader reader;
     bst::openSnapshot(stream, reader);
     bst::SnapshotEntryCollection p2pkhEntries = bst::getP2PKHCollection(reader);
@@ -149,6 +157,12 @@ void test_store_and_claim()
     string signature3 = "IIuXyLFeU+HVJnv9TPAGXnCnc0bCOi+enwjIWxsO5FmaMdVNBcRrkYGB07Qbdkghd+0XhnaUL3O+X+h4dzb0Kio=";
 
     ifstream stream;
+    stream.open(SNAPSHOT_NAME, ios::binary);
+    if (! stream.is_open())
+    {
+        cout << "could not open snapshot" << endl;
+        exit(1);
+    }
     bst::snapshot_reader reader;
     bst::openSnapshot(stream, reader);
     bst::SnapshotEntryCollection p2pkhEntries = bst::getP2PKHCollection(reader);
@@ -227,6 +241,12 @@ void test_write_sql_and_snapshot_separately()
     string signature3 = "IIuXyLFeU+HVJnv9TPAGXnCnc0bCOi+enwjIWxsO5FmaMdVNBcRrkYGB07Qbdkghd+0XhnaUL3O+X+h4dzb0Kio=";
 
     ifstream stream;
+    stream.open(SNAPSHOT_NAME, ios::binary);
+    if (! stream.is_open())
+    {
+        cout << "could not open snapshot" << endl;
+        exit(1);
+    }
     bst::snapshot_reader reader;
     bst::openSnapshot(stream, reader);
     bst::SnapshotEntryCollection p2pkhEntries = bst::getP2PKHCollection(reader);
@@ -300,6 +320,12 @@ void test_dust_pruning()
     string signature2 = "H3ys4y9vnG2cvneZMo33Vvv1kQTKr2iCcBZZe78OFl8VaPbXYNwLVTtTh5K7Qu4MpdOQiVo+6SHq6pPSzdBm7PQ=";
 
     ifstream stream;
+    stream.open(SNAPSHOT_NAME, ios::binary);
+    if (! stream.is_open())
+    {
+        cout << "could not open snapshot" << endl;
+        exit(1);
+    }
     bst::snapshot_reader reader;
     bst::openSnapshot(stream, reader);
     bst::SnapshotEntryCollection p2pkhEntries = bst::getP2PKHCollection(reader);
@@ -365,6 +391,16 @@ void make_dummy_address()
     cout << hexString << endl;
 }
 
+void extract_pkh(){
+    string address = "mwxmAdzR9Nm7pHoSLDm6kuUFTBabjc23E4";
+    bc::data_chunk chunk = bc::decode_base58(address);
+    bc::data_chunk justHash;
+    justHash.resize(20);
+    copy(chunk.begin() + 1, chunk.begin() + 22, justHash.begin());
+    string hashString = bc::encode_base16(justHash);
+    cout << "hash is " << hashString << endl;
+}
+
 void test_claim_bitfield()
 {
     bst::snapshot_preparer preparer;
@@ -401,6 +437,12 @@ void test_claim_bitfield()
 
 
     ifstream stream;
+    stream.open(SNAPSHOT_NAME, ios::binary);
+    if (! stream.is_open())
+    {
+        cout << "could not open snapshot" << endl;
+        exit(1);
+    }
     bst::snapshot_reader reader;
     bst::openSnapshot(stream, reader);
     bst::SnapshotEntryCollection p2pkhEntries = bst::getP2PKHCollection(reader);
@@ -536,14 +578,41 @@ void translate_multisig_address() {
     cout << "address " << payment_address.encoded();
 }
 
+void translate_privkey() {
+    string privKey = "KwEewS4M9EQoXw9nJQWW6wEoa76f6pBdJuVD8UGK4KMfhvUCTXMn";
+    //string privKey = "L5Uz2zafBP9wrUibAb7HCLqsQGwsY67XLRWUwGm4w3fEgcpxCdED";
+    bc::data_chunk chunk;
+    bc::decode_base58(chunk, privKey);
+
+    // change network byte
+    chunk[0] = 0xef;
+
+    bc::data_chunk extended;
+    extended.resize(chunk.size() - 4);
+    copy(chunk.begin(), chunk.end() - 4, extended.begin());
+
+    bc::hash_digest checksum1 = bc::sha256_hash(extended);
+    bc::hash_digest checksum2 = bc::sha256_hash(checksum1);
+
+    copy(checksum2.begin(), checksum2.begin() + 4, chunk.end() - 4);
+    /*
+    chunk[chunk.size() - 4] = checksum2[0];
+    chunk[chunk.size() - 3] = checksum2[1];
+    chunk[chunk.size() - 2] = checksum2[2];
+    chunk[chunk.size() - 1] = checksum2[3];
+     */
+
+    string translated = bc::encode_base58(chunk);
+    cout << "new wif " << translated << endl;
+}
+
 int main() {
     //test_all();
     //temp_make_address();
     /*
     test_store_p2pkhs_and_p2sh();
      */
-    translate_multisig_address();
-    //test_all();
+    extract_pkh();
 
     return 0;
 }

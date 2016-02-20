@@ -26,11 +26,6 @@ namespace bst {
     bool openSnapshot(ifstream& stream, snapshot_reader& reader)
     {
         reader.snapshot = &stream;
-        stream.open(SNAPSHOT_NAME, ios::binary);
-        if (! stream.is_open())
-        {
-            return false;
-        }
         stream.read(reinterpret_cast<char*>(&reader.header.version), sizeof(reader.header.version));
         stream.read(reinterpret_cast<char*>(&reader.header.block_hash[0]), 32);
         stream.read(reinterpret_cast<char*>(&reader.header.nP2PKH), sizeof(reader.header.nP2PKH));

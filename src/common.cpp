@@ -14,28 +14,9 @@
  * limitations under the License.
  */
 #include "bitcoin/bst/common.h"
-#include <bitcoin/bitcoin.hpp>
 
 using namespace std;
 
 namespace bst {
 
-    void resetClaims(snapshot_header& header)
-    {
-        uint64_t totalClaims = header.nP2PKH + header.nP2SH;
-        uint64_t bytesToWrite;
-        if (totalClaims % 8) {
-            bytesToWrite = totalClaims / 8 + 1;
-        } else {
-            bytesToWrite = totalClaims / 8;
-        }
-        ofstream claimedDatabase;
-        claimedDatabase.open(SNAPSHOT_CLAIMED_NAME, ios::binary);
-        char zeroByte = 0;
-        for (uint64_t i = 0; i < bytesToWrite; i++)
-        {
-            claimedDatabase.write(&zeroByte, 1);
-        }
-        claimedDatabase.close();
-    }
 }

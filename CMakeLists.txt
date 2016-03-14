@@ -4,14 +4,19 @@ project(spinoff_toolkit)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 #boost
+set(BOOST_INCLUDEDIR /nix/store/v14w92dl1iyd6b32lys7d2cmhqxnzn35-boost-1.57.0-dev/include)
+set(BOOST_LIBRARYDIR /nix/store/w5pb7nx1al2a7z3ag0f77kw53rgcyklj-boost-1.57.0-lib/lib)
 FIND_PACKAGE( Boost 1.57 COMPONENTS program_options REQUIRED )
 
 #libbitcoin
 set(LIBBITCOIN /nix/store/x7g501xv9inzriw999g2xksfsbzm966d-libbitcoin-2.9.0)
 
+#libsecp256k1
+set(LIBSECP /nix/store/1f9wnbxz4khdw1vsdslpdvi5a7dp4hqs-secp256k1-version3/include)
+
+
 # add in our dependencies
-include_directories(include ${LIBBITCOIN}/include ${Boost_INCLUDE_DIR})
-link_directories(${LIBBITCOIN}/lib)
+include_directories(include ${LIBSECP} ${Boost_INCLUDE_DIR})
 
 #bst library
 set(HEADER_FILES
@@ -29,25 +34,4 @@ set(SOURCE_FILES
         src/key.cpp
 )
 add_library(spinoff_toolkit SHARED ${SOURCE_FILES})
-
-# test program
-set(TEST_SOURCE_FILES
-        ${HEADER_FILES}
-        src/util/main.cpp
-)
-
-add_executable(spinoff_test ${TEST_SOURCE_FILES})
-target_link_libraries(spinoff_test bitcoin spinoff_toolkit ${Boost_LIBRARIES})
-
-# write snapshot file from existing sqlite
-set(WRITE_SNAPSHOT_SOURCE_FILES ${HEADER_FILES} src/util/writeSnapshotFromSql.cpp)
-
-add_executable(write_snapshot ${WRITE_SNAPSHOT_SOURCE_FILES})
-target_link_libraries(write_snapshot bitcoin spinoff_toolkit ${Boost_LIBRARIES})
-
-add_executable(get_balance ${HEADER_FILES} src/util/getBalance.cpp)
-target_link_libraries(get_balance bitcoin spinoff_toolkit ${Boost_LIBRARIES})
-
-add_executable(print_snapshot ${HEADER_FILES} src/util/printSnapshot.cpp)
-target_link_libraries(print_snapshot bitcoin spinoff_toolkit ${Boost_LIBRARIES})
 

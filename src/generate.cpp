@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-#include <bitcoin/bitcoin.hpp>
+#include <iostream>
+#include <sstream>
+#include <bits/stream_iterator.h>
 #include "bitcoin/bst/generate.h"
 #include "sqlite3.h"
 
@@ -48,30 +50,6 @@ namespace bst {
     static const string GET_ALL_P2SH = "select sh, total from"
             " (select sh, sum(amount) as total from p2sh group by sh order by sh)"
             "where total >= ?";
-
-    string getVerificationMessage(string address, string message, string signature)
-    {
-        bc::payment_address payment_address;
-
-        if (payment_address.set_encoded(address)) {
-            bc::message_signature decodedSignature;
-            bc::data_chunk chunk;
-            if (bc::decode_base64(chunk, signature)) {
-                copy(chunk.begin(), chunk.end(), decodedSignature.begin());
-                vector<uint8_t> messageBytes(message.begin(),message.end());
-                bc::array_slice<uint8_t> slice(messageBytes);
-                if (bc::verify_message(slice, address, decodedSignature)) {
-                    return VERIFIED;
-                } else {
-                    return UNMATCHED;
-                }
-            } else {
-                return INVALID_SIGNATURE;
-            }
-        } else {
-            return INVALID_ADDRESS;
-        }
-    }
 
     static int callback(void *NotUsed, int argc, char **argv, char **azColName){
         int i;
@@ -176,134 +154,6 @@ namespace bst {
         return true;
     }
 
-    bool writeUTXO(snapshot_preparer& preparer, const vector<uint8_t>& pubkeyscript, const uint64_t amount)
-    {
-        int rc;
-        char *zErrMsg = 0;
-
-        // start transaction if we haven't already
-        if (preparer.transaction_count == 0) {
-            string begin = "BEGIN;";
-            rc = sqlite3_exec(preparer.db, begin.c_str(), callback, 0, &zErrMsg);
-            if( rc!=SQLITE_OK ){
-                fprintf(stderr, "SQL error: %s\n", zErrMsg);
-                sqlite3_free(zErrMsg);
-            }
-        }
-
-        bc::array_slice<uint8_t> slice(pubkeyscript);
-        string keyString;
-        sqlite3_stmt* insert;
-
-        try {
-            bc::script_type script = bc::parse_script(slice);
-
-            switch (script.type())
-            {
-                case bc::payment_type::pubkey:
-                case bc::payment_type::pubkey_hash:
-                {
-                    if (preparer.debug)
-                    {
-                        string transactionString = bc::encode_base16(slice);
-                        cout << "recording p2pkh transaction " << transactionString << endl;
-                    }
-
-                    insert = preparer.insert_p2pkh;
-                    bc::payment_address paymentAddress;
-                    if (bc::extract(paymentAddress, script))
-                    {
-                        stringstream ss;
-                        vector<uint8_t> short_hash = vector<uint8_t>(20);
-                        copy(paymentAddress.hash().begin(), paymentAddress.hash().end(), short_hash.begin());
-                        prettyPrintVector(short_hash, ss);
-                        keyString = ss.str();
-                    } else {
-                        cout << "could not get a payment address from script" << endl;
-                        return false;
-                    }
-                }
-                    break;
-                case bc::payment_type::script_hash:
-                {
-                    if (preparer.debug)
-                    {
-                        string transactionString = bc::encode_base16(slice);
-                        cout << "recording p2sh transaction " << transactionString << endl;
-                    }
-
-                    insert = preparer.insert_p2sh;
-                    bc::payment_address paymentAddress;
-                    if (bc::extract(paymentAddress, script))
-                    {
-                        keyString = bc::encode_base16(paymentAddress.hash());
-                    } else {
-                        cout << "could not get a payment address from script" << endl;
-                        return false;
-                    }
-                }
-                    break;
-                default:
-                {
-                    if (preparer.debug)
-                    {
-                        string transactionString = bc::encode_base16(slice);
-                        cout << "recording strange transaction " << transactionString << endl;
-                    }
-
-                    // treat all non-standard transactions as P2SH
-                    insert = preparer.insert_p2sh;
-                    bc::short_hash hash = bc::bitcoin_short_hash(slice);
-                    keyString = bc::encode_base16(hash);
-                }
-                    break;
-            }
-
-            rc = sqlite3_bind_text(insert, 1, keyString.c_str(), -1, NULL);
-            if (rc != SQLITE_OK)
-            {
-                cout << "error binding address hash " << rc << endl;
-                return false;
-            }
-            rc = sqlite3_bind_int64(insert, 2, amount);
-            if (rc != SQLITE_OK)
-            {
-                cout << "error binding amount" << rc << endl;
-                return false;
-            }
-            rc = sqlite3_step(insert);
-            if (rc != SQLITE_DONE)
-            {
-                cout << "error writing row " << rc << endl;
-                return false;
-            }
-            rc = sqlite3_reset(insert);
-            if (rc != SQLITE_OK)
-            {
-                cout << "error resetting prepared statement" << rc << endl;
-                return false;
-            }
-
-            // finish a transaction if we've reached the statement limit
-            preparer.transaction_count++;
-            if (preparer.transaction_count == TRANSACTION_SIZE)
-            {
-                string commit = "COMMIT;";
-                rc = sqlite3_exec(preparer.db, commit.c_str(), callback, 0, &zErrMsg);
-                if( rc!=SQLITE_OK ){
-                    fprintf(stderr, "SQL error: %s\n", zErrMsg);
-                    sqlite3_free(zErrMsg);
-                }
-                preparer.transaction_count = 0;
-            }
-
-            return true;
-
-        } catch (bc::end_of_stream) {
-            cout << "could not parse transaction script" << endl;
-            return false;
-        }
-    }
 
     bool writeJustSqlite(snapshot_preparer& preparer)
     {
@@ -338,117 +188,6 @@ namespace bst {
         return true;
     }
 
-    bool writeSnapshotFromSqlite(const uint256_t& blockhash, const uint64_t dustLimit)
-    {
-        sqlite3 *db;
-        char *zErrMsg = 0;
-        int rc;
-
-        rc = sqlite3_open(DB_NAME.c_str(), &db);
-        if( rc ){
-            fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-            sqlite3_close(db);
-            return false;
-        }
-
-        snapshot_header header = snapshot_header();
-        ofstream snapshot;
-        snapshot.open(SNAPSHOT_NAME, ios::binary);
-
-        // write all p2pkh to snapshot
-        sqlite3_stmt* stmt;
-        snapshot.seekp(HEADER_SIZE);
-        rc = sqlite3_prepare_v2(db, GET_ALL_P2PKH.c_str(), -1, &stmt, NULL);
-        if( rc!=SQLITE_OK ){
-            cout << "Could not prepare statement for getting all p2pkh " << rc << endl;
-        }
-
-        rc = sqlite3_bind_int64(stmt, 1, dustLimit);
-        if (rc != SQLITE_OK)
-        {
-            cout << "error binding dust limit" << rc << endl;
-            return false;
-        }
-
-        while (SQLITE_ROW == (rc = sqlite3_step(stmt))) {
-
-            const unsigned char* keyCString = sqlite3_column_text(stmt, 0);
-            stringstream ss;
-            ss << keyCString;
-            vector<uint8_t> hashVec;
-            if ( ! decodeVector(ss.str(), hashVec))
-            {
-                cout << "error decoding " << ss.str() << endl;
-                return 0;
-            }
-            copy(hashVec.begin(), hashVec.end(), ostream_iterator<uint8_t>(snapshot));
-
-            uint64_t amount = sqlite3_column_int64(stmt, 1);
-            snapshot.write(reinterpret_cast<const char*>(&amount), sizeof(amount));
-            header.nP2PKH++;
-        }
-
-        if (SQLITE_DONE != rc)
-        {
-            cout << "could not get all p2pkh rows: " << rc << endl;
-        }
-        rc = sqlite3_finalize(stmt);
-
-        // write all p2sh to snapshot
-        rc = sqlite3_prepare_v2(db, GET_ALL_P2SH.c_str(), -1, &stmt, NULL);
-        if( rc!=SQLITE_OK ){
-            cout << "Could not prepare statement for getting all p2sh" << endl;
-        }
-
-        rc = sqlite3_bind_int64(stmt, 1, dustLimit);
-        if (rc != SQLITE_OK)
-        {
-            cout << "error binding dust limit" << rc << endl;
-            return false;
-        }
-
-        while (SQLITE_ROW == (rc = sqlite3_step(stmt))) {
-
-            const unsigned char* keyCString = sqlite3_column_text(stmt, 0);
-            stringstream ss;
-            ss << keyCString;
-            bc::data_chunk chunk;
-
-            if ( ! bc::decode_base16(chunk, ss.str()))
-            {
-                cout << "error decoding " << ss.str() << endl;
-                return 0;
-            }
-            copy(chunk.begin(), chunk.end(), ostream_iterator<uint8_t>(snapshot));
-
-            uint64_t amount = sqlite3_column_int64(stmt, 1);
-            snapshot.write(reinterpret_cast<const char*>(&amount), sizeof(amount));
-            header.nP2SH++;
-        }
-
-        if (SQLITE_DONE != rc)
-        {
-            cout << "could not get all p2sh rows: " << rc << endl;
-        }
-        rc = sqlite3_finalize(stmt);
-
-        sqlite3_close(db);
-
-        // write snapshot header
-        snapshot.seekp(0);
-        snapshot.write(reinterpret_cast<const char*>(&header.version), sizeof(header.version));
-        copy(header.block_hash.begin(), header.block_hash.end(), ostream_iterator<uint8_t>(snapshot));
-        snapshot.write(reinterpret_cast<const char*>(&header.nP2PKH), sizeof(header.nP2PKH));
-        snapshot.write(reinterpret_cast<const char*>(&header.nP2SH), sizeof(header.nP2SH));
-
-        snapshot.flush();
-        snapshot.close();
-
-        // write claim bitfield file
-        resetClaims(header);
-
-        return true;
-    }
 
     bool writeSnapshot(snapshot_preparer& preparer, const vector<uint8_t>& blockhash, const uint64_t dustLimit)
     {

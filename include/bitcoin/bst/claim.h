@@ -123,9 +123,6 @@ namespace bst {
     SnapshotEntryCollection getP2PKHCollection(const snapshot_reader& reader);
     SnapshotEntryCollection getP2SHCollection(const snapshot_reader& reader);
 
-    void printSnapshot();
-    void printHeader();
-
     uint64_t getP2PKHAmount(SnapshotEntryCollection& collection, const string& claim, const string& signature);
     uint64_t getP2SHAmount(SnapshotEntryCollection& collection, const string& transaction, const string& address, const uint32_t input_index);
 }

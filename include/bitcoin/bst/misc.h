@@ -17,7 +17,6 @@
 #define SPINOFF_TOOLKIT_MISC_H
 
 #include <fstream>
-#include <bitcoin/bitcoin.hpp>
 #include "common.h"
 
 using namespace std;
@@ -26,7 +25,6 @@ namespace bst {
 
     string getVerificationMessage(string address, string message, string signature);
     bool recover_address(const string &message, const string &signature, vector <uint8_t> &paymentVector);
-    bool recover_address(const string &message, const bc::message_signature &signature, vector <uint8_t> &paymentVector);
 
     // remove these two
     void prettyPrintVector(const vector<uint8_t>& vector, stringstream& ss);

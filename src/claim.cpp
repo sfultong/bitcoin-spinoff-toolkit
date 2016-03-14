@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <bitcoin/bitcoin.hpp>
 #include "bitcoin/bst/claim.h"
 #include "bitcoin/bst/misc.h"
 #include "bitcoin/bst/common.h"
@@ -31,48 +30,6 @@ namespace bst {
         stream.read(reinterpret_cast<char*>(&reader.header.nP2PKH), sizeof(reader.header.nP2PKH));
         stream.read(reinterpret_cast<char*>(&reader.header.nP2SH), sizeof(reader.header.nP2SH));
         return true;
-    }
-
-    void printSnapshot()
-    {
-        ifstream stream;
-        snapshot_reader reader;
-        openSnapshot(stream, reader);
-
-        cout << "p2pkh:" << endl;
-        SnapshotEntryCollection p2pkhEntries = getP2PKHCollection(reader);
-        for (SnapshotEntryCollection::const_iterator i = p2pkhEntries.begin(); i != p2pkhEntries.end(); i++) {
-            snapshot_entry entry = *i;
-            bc::short_hash sh;
-            copy(entry.hash.begin(), entry.hash.end(), sh.begin());
-            bc::payment_address address(111, sh);
-            cout << address.encoded() << " " << entry.amount << endl;
-        }
-
-        cout << "p2sh:" << endl;
-        SnapshotEntryCollection p2shEntries = getP2SHCollection(reader);
-        for (SnapshotEntryCollection::const_iterator i = p2shEntries.begin(); i != p2shEntries.end(); i++) {
-            snapshot_entry entry = *i;
-            bc::short_hash sh;
-            copy(entry.hash.begin(), entry.hash.end(), sh.begin());
-            bc::payment_address address(196, sh);
-            cout << address.encoded() << " " << entry.amount << endl;
-        }
-
-        reader.snapshot->close();
-    }
-
-    void printHeader()
-    {
-        ifstream stream;
-        snapshot_reader reader;
-        openSnapshot(stream, reader);
-
-        cout << "version " << reader.header.version << endl;
-        bc::data_chunk chunk = bc::data_chunk(reader.header.block_hash);
-        cout << "last block hash " << bc::encode_base16(chunk) << endl;
-        cout << "p2pkh " << reader.header.nP2PKH << endl;
-        cout << "p2sh " << reader.header.nP2SH << endl;
     }
 
     // assumes the vectors are the same length
@@ -155,33 +112,6 @@ namespace bst {
         return true;
     }
 
-    bool getEntry (SnapshotEntryCollection& entries, const string &claim, const bc::message_signature &signature, snapshot_entry& entry) {
-
-        // first, get p2pkh value for claim
-        vector<uint8_t> claimVector = vector<uint8_t>(20);
-        if (!recover_address(claim, signature, claimVector)) {
-            false;
-        }
-
-        return entries.getEntry(claimVector, entry);
-    }
-
-    bool SnapshotEntryCollection::getEntry(const string& claim, const string& signature, snapshot_entry& entry) {
-        bc::message_signature decodedSignature = bc::message_signature();
-        bc::data_chunk chunk;
-        if (!bc::decode_base64(chunk, signature)) return false;
-        copy(chunk.begin(), chunk.end(), decodedSignature.begin());
-
-        return bst::getEntry(*this, claim, decodedSignature, entry);
-    }
-
-    bool SnapshotEntryCollection::getEntry(const string& claim, const uint256_t signature, snapshot_entry& entry) {
-        bc::message_signature message_signature = bc::message_signature();
-        copy(signature.begin(), signature.end(), message_signature.begin());
-
-        return bst::getEntry(*this, claim, message_signature, entry);
-    }
-
     void SnapshotEntryCollection::setClaimed(int64_t index) {
         setClaimedWithOffset(index, claimed_offset);
     }
@@ -205,36 +135,4 @@ namespace bst {
         }
         return 0;
     }
-
-    uint64_t getP2SHAmount(SnapshotEntryCollection& collection, const string &transaction, const string &address,
-                           const uint32_t input_index) {
-        bc::payment_address payment_address = bc::payment_address(address);
-        vector <uint8_t> claimVector = vector<uint8_t>(payment_address.hash().begin(), payment_address.hash().end());
-
-        // construct output script from script hash
-        vector <uint8_t> output_vector = vector<uint8_t>(23);
-        copy(claimVector.begin(), claimVector.end(), output_vector.begin() + 2);
-        output_vector[0] = (uint8_t) bc::opcode::hash160;
-        output_vector[1] = 0x14; // special - 20 bytes of data follow
-        output_vector[22] = (uint8_t) bc::opcode::equal;
-        bc::array_slice <uint8_t> output_slice(output_vector);
-        bc::script_type output_script = bc::parse_script(output_slice);
-
-        // construct transaction
-        bc::data_chunk transaction_chunk;
-        bc::decode_base16(transaction_chunk, transaction);
-        bc::transaction_type transaction_type;
-        bc::satoshi_load(transaction_chunk.begin(), transaction_chunk.end(), transaction_type);
-        bc::script_type input_script = transaction_type.inputs[input_index].script;
-
-        // if transaction validates against output script, find amount in snapshot
-        if (output_script.run(input_script, transaction_type, input_index)) {
-            snapshot_entry entry;
-            if ( collection.getEntry(claimVector, entry)) {
-                return entry.amount;
-            }
-        }
-        return 0;
-    }
-
 }
